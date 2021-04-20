@@ -31,7 +31,7 @@
         //构造假数据
         data(){
             return{
-                msg:"Hello Vue",
+                msg:"Hello Vue, Testuser.vue",
                 testusers:[
                     {
                         id:1,
