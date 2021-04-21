@@ -3,7 +3,7 @@ import VueRouter from 'vue-router'
 import Home from '../views/Home.vue'
 // import TestUser from '../views/TestUser.vue'
 import App from "../App"
-import Index from "../views/index"
+import Menu from "../views/Menu"
 
 Vue.use(VueRouter)
 
@@ -12,7 +12,7 @@ const routes = [
   {
     path: '/',
     name: '导航一App',
-    component: Index,
+    component: Menu,
     children: [
       {
         path: 'TestUser',
