@@ -33,10 +33,10 @@
             <!--        </el-menu>-->
 
             <!--        自动生成aside-->
-            <el-menu>
+            <el-menu router >
                 <el-submenu v-for="(item, index) in $router.options.routes" :index="index+''">
                     <template slot="title"><i class="el-icon-message"></i>{{item.name}}</template>
-                    <el-menu-item v-for="(item2,index2) in item.children" :index="index+'-'+index2">{{item2.name}}</el-menu-item>
+                    <el-menu-item v-for="(item2,index2) in item.children" :index="item2.path">{{item2.name}}</el-menu-item>
 
                 </el-submenu>
             </el-menu>

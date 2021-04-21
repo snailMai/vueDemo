@@ -15,7 +15,7 @@ const routes = [
     component: Menu,
     children: [
       {
-        path: 'TestUser',
+        path: '/TestUser',
         name: 'TestUser',
         component: () => import('../views/TestUser')
       },
