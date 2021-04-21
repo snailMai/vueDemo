@@ -13,6 +13,7 @@ const routes = [
     path: '/',
     name: '导航一App',
     component: Menu,
+    redirect:"/TestUser",
     children: [
       {
         path: '/TestUser',
