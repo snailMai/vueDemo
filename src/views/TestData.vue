@@ -20,8 +20,8 @@
                     label="年龄"
                     width="120">
             </el-table-column>
+<!--            fixed="right"  可实现在右边-->
             <el-table-column
-                    fixed="right"
                     label="操作"
                     width="100">
                 <template slot-scope="scope">
