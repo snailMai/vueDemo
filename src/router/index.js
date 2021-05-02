@@ -5,6 +5,7 @@ import Home from '../views/Home.vue'
 import App from "../App"
 import Menu from "../views/Menu"
 import TestData  from "../views/TestData";
+import AddTestUser  from "../views/AddTestUser";
 
 Vue.use(VueRouter)
 
@@ -14,7 +15,7 @@ const routes = [
     path: '/',
     name: '导航一App',
     component: Menu,
-    redirect:"/TestUser",
+    redirect:"/TestUser",   // 默认渠道/TestUser
     children: [
       {
         path: '/TestUser',
@@ -30,6 +31,11 @@ const routes = [
         path: '/TestData',
         name: 'TestData',
         component: TestData
+      },
+      {
+        path: '/AddTestUser',
+        name: 'AddTestUser',
+        component: AddTestUser
       }
     ]
   },
