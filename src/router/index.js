@@ -19,7 +19,7 @@ const routes = [
     children: [
       {
         path: '/TestUser',
-        name: 'TestUser',
+        name: 'getAllTestUser',
         component: () => import('../views/TestUser')
       },
       {

@@ -66,9 +66,9 @@
             axios.get('http://localhost:8081/testuser/number').then(function (resp) {
                 // _this.tableData=resp.data  // 这里边的this指的是回调  this 区分2
                 // _this.total = resp.data.testUserNumber
-                // console.log(resp.data)
+                // console.log(resp)
                 // alert(_this.total)
-                _this.total = 6
+                _this.total = resp.data
             })
             axios.get('http://localhost:8081/testuser/allTestUserVue/1').then(function (resp) {
                 _this.tableData=resp.data  // 这里边的this指的是回调  this 区分2
@@ -78,9 +78,7 @@
                 // console.log(resp.data)
             })
         },
-
         data() {
-
             return {
                 total: null,
                 tableData: null

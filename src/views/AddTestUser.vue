@@ -63,7 +63,7 @@
                                 _this.$alert("用户\"" + _this.ruleForm.username + "\"添加成功!", '消息', {
                                     confirmButtonText: '确定',
                                     callback: action => {
-                                        _this.$router.push('/testuser')
+                                        _this.$router.push('/TestData')
                                     }
                                 });
                                 // _this.$message('添加成功')  // 只在界面上方显示'添加成功'
