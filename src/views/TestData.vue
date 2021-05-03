@@ -25,8 +25,8 @@
                     label="操作"
                     width="100">
                 <template slot-scope="scope">
-                    <el-button @click="handleClick(scope.row)" type="text" size="small">查看</el-button>
-                    <el-button type="text" size="small">编辑</el-button>
+                    <el-button @click="edit(scope.row)" type="text" size="small">修改</el-button>
+                    <el-button @click="deleteTestUser(scope.row)" type="text" size="small">删除</el-button>
                 </template>
             </el-table-column>
         </el-table>
@@ -45,8 +45,33 @@
 <script>
     export default {
         methods: {
-            handleClick(row) {
+            // edit方法,新增修改属性
+            edit(row) {
                 console.log(row);
+                this.$router.push({
+                    path: '/UpdateTestUser',
+                    query:{
+                        id : row.id
+                    }
+                })
+            },
+            deleteTestUser(row){
+                console.log(row);
+                const _this = this
+                axios.delete('http://localhost:8081/testuser/' + row.username).then(function(resp){
+                    if (resp != null){
+                        _this.$alert("用户\"" + row.username + "\"删除成功!", '消息', {
+                            confirmButtonText: '确定',
+                            callback: action => {
+                                //_this.$router.push('/TestData')
+                                //动态刷新  // js语法
+                                window.location.reload()
+                            }
+                        });
+                    }else {
+                        alert(resp + ':' + 'Update TestUser Failed, please check your input')
+                    }
+                })
             },
             // page(currentPage){
             //     alert(currentPage)

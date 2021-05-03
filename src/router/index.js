@@ -6,6 +6,7 @@ import App from "../App"
 import Menu from "../views/Menu"
 import TestData  from "../views/TestData";
 import AddTestUser  from "../views/AddTestUser";
+import UpdateTestUser  from "../views/UpdateTestUser";
 
 Vue.use(VueRouter)
 
@@ -29,16 +30,22 @@ const routes = [
       },
       {
         path: '/TestData',
-        name: 'TestData',
+        name: 'TestUser列表',
         component: TestData
       },
       {
         path: '/AddTestUser',
-        name: 'AddTestUser',
+        name: '注册TestUser',
         component: AddTestUser
+      },
+      {
+        path: '/UpdateTestUser',
+        name: '更新TestUser',
+        component: UpdateTestUser
       }
     ]
   },
+
 
 
   {
