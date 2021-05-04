@@ -1,6 +1,6 @@
 <template>
     <el-container style="height: 1500px; border: 1px solid #eee">
-        <el-aside width="200px" style="background-color: rgb(238, 241, 246)">
+        <el-aside width="250px" style="background-color: rgb(238, 241, 246)">
 
             <!--        固定方式-->
             <!--        <el-menu :default-openeds="['1']" :default-active="'1-1'">-->
@@ -34,9 +34,12 @@
 
             <!--        自动生成aside-->
             <el-menu router :default-openeds="['0']">
+                <!--  打开和关闭下拉框,是通过index来判断的  -->
+                <!--  item是对象,index是下标,这两个顺序不能变 //绑定index //index就是遍历出来的数字:0,1,2... -->
                 <el-submenu v-for="(item, index) in $router.options.routes" :index="index+''">
                     <template slot="title"><i class="el-icon-message"></i>{{item.name}}</template>
-                    <el-menu-item v-for="(item2,index2) in item.children" :index="item2.path" :class="$route.path==item2.path?'is-active':''">{{item2.name}}</el-menu-item>
+                    <!--  <el-menu-item>标签的index值就是要跳转的router  -->
+                    <el-menu-item v-for="item2 in item.children" :index="item2.path" :class="$route.path===item2.path?'is-active':''">{{item2.name}}</el-menu-item>
 
                 </el-submenu>
             </el-menu>
