@@ -1,15 +1,13 @@
 <template>
 
   <div id="app">
+    <router-link to="/AddTestUser">新增</router-link> |
+<!--    <router-link to="/about">修改</router-link> |-->
+    <router-link to="/TestData">查询</router-link> |
+    <router-link to="/TestUser">一页显示</router-link>
+
     <div id="nav">
-    <router-link to="/">Home</router-link> |
-    <router-link to="/about">About</router-link> |
-    <router-link to="/testuser">testuser</router-link>
           <router-view></router-view>
-
-
-
-
     </div>
   </div>
 </template>
