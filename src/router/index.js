@@ -4,7 +4,7 @@ import Home from '../views/Home.vue'
 // import TestUser from '../views/TestUser.vue'
 import App from "../App"
 import Menu from "../views/Menu"
-import TestData  from "../views/TestData";
+import GetTestUser  from "../views/GetTestUser";
 import AddTestUser  from "../views/AddTestUser";
 import UpdateTestUser  from "../views/UpdateTestUser";
 
@@ -14,13 +14,15 @@ const routes = [
 
   {
     path: '/',
-    name: '导航一App',
+    name: 'TestUser',
     component: Menu,
+    show:true,
     redirect:"/TestUser",   // 默认渠道/TestUser
     children: [
       {
         path: '/TestUser',
         name: 'getAllTestUser',
+        show:true,
         component: () => import('../views/TestUser')
       },
       {
@@ -29,9 +31,9 @@ const routes = [
         component: () => import('../views/About')
       },
       {
-        path: '/TestData',
-        name: 'TestUser列表',
-        component: TestData
+        path: '/GetTestUser',
+        name: 'GetTestUser列表',
+        component: GetTestUser
       },
       {
         path: '/AddTestUser',
@@ -46,17 +48,17 @@ const routes = [
     ]
   },
 
-
-
   {
     path: '/',
     name: 'Home',
+    show:false,
     component: Home  // Home = '../views/Home.vue'
   },
   //  用于测试重复
   {
     path: '/',
-    name: '导航二App',
+    name: '导航二,用于测试重复',
+    show:true,
     component: App,
     children: [
       {
