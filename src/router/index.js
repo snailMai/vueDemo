@@ -20,36 +20,25 @@ const routes = [
     redirect:"/TestUser",   // 默认渠道/TestUser
     children: [
       {
-        path: '/TestUser',
-        name: 'getAllTestUser',
-        show:true,
-        component: () => import('../views/TestUser')
-      },
-      {
-        path: '/about',
-        name: 'About',
+        path: '/About',
+        name: '首页',
         component: () => import('../views/About')
       },
       {
         path: '/GetTestUser',
-        name: 'GetTestUser列表',
+        name: 'GetTestUser',
         component: GetTestUser
       },
       {
         path: '/AddTestUser',
         name: '注册TestUser',
         component: AddTestUser
-      },
-      {
-        path: '/UpdateTestUser',
-        name: '更新TestUser',
-        component: UpdateTestUser
       }
     ]
   },
 
   {
-    path: '/',
+    path: '/Home',
     name: 'Home',
     show:false,
     component: Home  // Home = '../views/Home.vue'
@@ -58,8 +47,8 @@ const routes = [
   {
     path: '/',
     name: '导航二,用于测试重复',
-    show:true,
-    component: App,
+    show:false,
+    component: Menu,
     children: [
       {
         path: 'TestUser',
@@ -70,7 +59,23 @@ const routes = [
         path: '/about',
         name: 'About',
         component: () => import('../views/About')
-      }
+      },
+      {
+        path: '/about',
+        name: 'About',
+        component: () => import('../views/About')
+      },
+      {
+        path: '/UpdateTestUser',
+        name: '更新TestUser',
+        component: UpdateTestUser
+      },
+      {
+        path: '/TestUser',
+        name: 'getAllTestUser',
+        show:true,
+        component: () => import('../views/TestUser')
+      },
     ]
   },
     // 上边基于vue2.0,下边基于3.0(懒加载)

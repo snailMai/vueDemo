@@ -36,7 +36,8 @@
             <el-menu router :default-openeds="['0']">
                 <!--  打开和关闭下拉框,是通过index来判断的  -->
                 <!--  item是对象,index是下标,这两个顺序不能变 //绑定index //index就是遍历出来的数字:0,1,2... -->
-                <el-submenu v-for="(item, index) in $router.options.routes" :index="index+''">
+                <!-- ***v-if会有warning,暂时这么处理,以后有时间记得处理*** -->
+                <el-submenu v-for="(item, index) in $router.options.routes" :index="index+''" v-if="item.show">
                     <template slot="title"><i class="el-icon-message"></i>{{item.name}}</template>
                     <!--  <el-menu-item>标签的index值就是要跳转的router  -->
                     <el-menu-item v-for="item2 in item.children" :index="item2.path" :class="$route.path===item2.path?'is-active':''">{{item2.name}}</el-menu-item>
@@ -55,7 +56,7 @@
                         <el-dropdown-item>删除</el-dropdown-item>
                     </el-dropdown-menu>
                 </el-dropdown>
-                <span>王小虎</span>
+                <span>该控件暂时无用</span>
             </el-header>
 
             <el-main>
