@@ -33,7 +33,7 @@
         <el-pagination
                 background
                 layout="prev, pager, next"
-                page-size="5"
+                :page-size="5"
                 :total="total"
                 @current-change="page">
             <!--            页数 = total / page-size -->
@@ -58,7 +58,8 @@
             deleteTestUser(row){
                 console.log(row);
                 const _this = this
-                axios.delete('http://localhost:8081/testuser/' + row.username).then(function(resp){
+                // axios.delete('http://localhost:8081/testuser/' + row.username).then(function(resp){
+                axios.delete(this.TESTUSERGLOBAL.DELETETESTUSER + row.username).then(function(resp){
                     if (resp != null){
                         _this.$alert("用户\"" + row.username + "\"删除成功!", '消息', {
                             confirmButtonText: '确定',
@@ -88,6 +89,7 @@
         },
         created(){
             const _this = this
+            // 获取所有TestUser个数
             axios.get('http://localhost:8081/testuser/number').then(function (resp) {
                 // _this.tableData=resp.data  // 这里边的this指的是回调  this 区分2
                 // _this.total = resp.data.testUserNumber
@@ -95,6 +97,7 @@
                 // alert(_this.total)
                 _this.total = resp.data
             })
+            //获取第一页
             axios.get('http://localhost:8081/testuser/allTestUserVue/1').then(function (resp) {
                 _this.tableData=resp.data  // 这里边的this指的是回调  this 区分2
 

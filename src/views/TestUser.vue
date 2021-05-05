@@ -66,7 +66,8 @@
             // then是回调 url后加 + currentPage
             // this.testuser //这里的this指的是script-data  this 区分1
             const _this = this
-            axios.get('http://localhost:8081/testuser/allTestUserVue').then(function (resp) {
+            // axios.get('http://localhost:8081/testuser/allTestUserVue').then(function (resp) {
+            axios.get(this.TESTUSERGLOBAL.GETTESTUSERLIST).then(function (resp) {
                 _this.testusers=resp.data  // 这里边的this指的是回调  this 区分2
 
                 // 可以在浏览器F12里边展示内容

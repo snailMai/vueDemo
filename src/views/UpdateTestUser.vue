@@ -7,7 +7,8 @@
             <el-input v-model="ruleForm.username"></el-input>
         </el-form-item>
         <el-form-item label="年龄" prop="age">
-            <el-input v-model="ruleForm.age"></el-input>
+            <!-- v-mode.number表示为number类型   -->
+            <el-input v-model.number="ruleForm.age"></el-input>
         </el-form-item>
 
         <el-form-item>
@@ -33,7 +34,7 @@
                     ],
                     age: [
                         { required: true, message: '用户年龄不能为空', trigger: 'blur' },
-                        { min: 1, max: 3, message: '长度在 1 到 3 个字符', trigger: 'blur' }
+                        // { min: 1, max: 3, message: '长度在 1 到 3 个字符', trigger: 'blur'}
                     ]
                 }
             };
@@ -44,10 +45,10 @@
                 // this.$refs[formName] 获取formName内容
                 this.$refs[formName].validate((valid) => {
                     if (valid) {
-                        axios.put('http://localhost:8081/testuser/updateTestUser/' + this.$route.query.id, this.ruleForm).then(function (resp) {
+                        axios.put(this.TESTUSERGLOBAL.UPDATETESTUSER + this.$route.query.id, this.ruleForm).then(function (resp) {
                             console.log(resp)
                             if (resp != null){
-                                _this.$alert("用户\"" + _this.ruleForm.username + "\"添加成功!", '消息', {
+                                _this.$alert("用户\"" + _this.ruleForm.username + "\"修改成功!", '消息', {
                                     confirmButtonText: '确定',
                                     callback: action => {
                                         _this.$router.push('/GetTestUser')
@@ -72,7 +73,7 @@
             // router 是跳转,route是拿参数
             // alert(this.$route.query.id)
             const _this = this
-            axios.get('http://localhost:8081/testuser/' + this.$route.query.id).then(function(resp){
+            axios.get('testuser/' + this.$route.query.id).then(function(resp){
                 // console.log(resp.data)
                 _this.ruleForm=resp.data
             })

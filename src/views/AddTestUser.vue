@@ -54,7 +54,8 @@
                     if (valid) {
                         // console.log(this.ruleForm)
                         // alert('submit!');
-                        axios.post('http://localhost:8081/testuser/addTestUser/', this.ruleForm).then(function (resp) {
+                        axios.post(this.TESTUSERGLOBAL.ADDTESTUSER, this.ruleForm).then(function (resp) {
+                        // axios.post('http://localhost:8081/testuser/addTestUser/', this.ruleForm).then(function (resp) {
                             // this.tableData=resp.data  // 这里边的this指的是回调  this 区分2
 
                             // loading: true   // 加载,暂时是失败的
