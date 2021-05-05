@@ -1,12 +1,11 @@
 import Vue from 'vue'
 import VueRouter from 'vue-router'
 import Home from '../views/Home.vue'
-// import TestUser from '../views/TestUser.vue'
-import App from "../App"
 import Menu from "../views/Menu"
 import GetTestUser  from "../views/GetTestUser";
 import AddTestUser  from "../views/AddTestUser";
 import UpdateTestUser  from "../views/UpdateTestUser";
+import About from "../views/About"
 
 Vue.use(VueRouter)
 
@@ -17,12 +16,12 @@ const routes = [
     name: 'TestUser',
     component: Menu,
     show:true,
-    redirect:"/TestUser",   // 默认渠道/TestUser
+    redirect:"/About",   // 默认渠道/TestUser
     children: [
       {
         path: '/About',
         name: '首页',
-        component: () => import('../views/About')
+        component: About
       },
       {
         path: '/GetTestUser',
@@ -58,12 +57,7 @@ const routes = [
       {
         path: '/about',
         name: 'About',
-        component: () => import('../views/About')
-      },
-      {
-        path: '/about',
-        name: 'About',
-        component: () => import('../views/About')
+        component: About
       },
       {
         path: '/UpdateTestUser',
