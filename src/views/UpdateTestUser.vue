@@ -46,8 +46,12 @@
                 this.$refs[formName].validate((valid) => {
                     if (valid) {
                         axios.put(this.TESTUSERGLOBAL.UPDATETESTUSER.replace("{}", this.$route.query.id), this.ruleForm).then(function (resp) {
-                            console.log(resp)
-                            if (resp != null){
+                            console.log("返回内容:" + resp.data.toString())
+                            if ("username and age is already exist"===resp.data){
+                                _this.$alert("用户\"" + _this.ruleForm.username + "\"修改失败,用户名或者年龄未修改!", '报错消息', {
+                                    confirmButtonText: '确定'
+                                });
+                            }else if ("update user success, the user is "+_this.ruleForm.username === resp.data){
                                 _this.$alert("用户\"" + _this.ruleForm.username + "\"修改成功!", '消息', {
                                     confirmButtonText: '确定',
                                     // callback: action => {
