@@ -63,11 +63,11 @@
                     if (resp != null){
                         _this.$alert("用户\"" + row.username + "\"删除成功!", '消息', {
                             confirmButtonText: '确定',
-                            callback: action => {
+                            callback:
                                 //_this.$router.push('/TestData')
                                 //动态刷新  // js语法
                                 window.location.reload()
-                            }
+
                         });
                     }else {
                         alert(resp + ':' + 'Update TestUser Failed, please check your input')
@@ -79,7 +79,10 @@
             // },
             page(currentPage){
                 const _this = this
-                axios.get('http://localhost:8081/testuser/allTestUserVue/' + currentPage).then(function (resp) {
+                // console.log("12:" + this.TESTUSERGLOBAL.GETTESTUSERBYPAGE)
+                // console.log("23:" + this.TESTUSERGLOBAL.GETTESTUSERBYPAGE.replace("{}", currentPage))
+                // axios.get('http://localhost:8081/testuser/allTestUserVue/' + currentPage).then(function (resp) {
+                axios.get(this.TESTUSERGLOBAL.GETTESTUSERBYPAGE.replace("{}", currentPage)).then(function (resp) {
                     _this.tableData=resp.data  // 这里边的this指的是回调  this 区分2
                     // _this.total = resp.data.length
                     // console.log(resp.data)
@@ -90,7 +93,7 @@
         created(){
             const _this = this
             // 获取所有TestUser个数
-            axios.get('http://localhost:8081/testuser/number').then(function (resp) {
+            axios.get(this.TESTUSERGLOBAL.COUNTTESTUSER).then(function (resp) {
                 // _this.tableData=resp.data  // 这里边的this指的是回调  this 区分2
                 // _this.total = resp.data.testUserNumber
                 // console.log(resp)
@@ -98,7 +101,7 @@
                 _this.total = resp.data
             })
             //获取第一页
-            axios.get('http://localhost:8081/testuser/allTestUserVue/1').then(function (resp) {
+            axios.get(this.TESTUSERGLOBAL.GETTESTUSERBYPAGE.replace("{}", 1)).then(function (resp) {
                 _this.tableData=resp.data  // 这里边的this指的是回调  this 区分2
 
                 // _this.total = resp.data.length

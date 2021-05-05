@@ -45,14 +45,15 @@
                 // this.$refs[formName] 获取formName内容
                 this.$refs[formName].validate((valid) => {
                     if (valid) {
-                        axios.put(this.TESTUSERGLOBAL.UPDATETESTUSER + this.$route.query.id, this.ruleForm).then(function (resp) {
+                        axios.put(this.TESTUSERGLOBAL.UPDATETESTUSER.replace("{}", this.$route.query.id), this.ruleForm).then(function (resp) {
                             console.log(resp)
                             if (resp != null){
                                 _this.$alert("用户\"" + _this.ruleForm.username + "\"修改成功!", '消息', {
                                     confirmButtonText: '确定',
-                                    callback: action => {
-                                        _this.$router.push('/GetTestUser')
-                                    }
+                                    // callback: action => {
+                                    //     _this.$router.push('/GetTestUser')
+                                    // }
+                                    callback: _this.$router.push('/GetTestUser')
                                 });
                             }else {
                                 alert('Create TestUser Failed, please check your input')
