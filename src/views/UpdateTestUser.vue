@@ -50,7 +50,7 @@
                                 _this.$alert("用户\"" + _this.ruleForm.username + "\"添加成功!", '消息', {
                                     confirmButtonText: '确定',
                                     callback: action => {
-                                        _this.$router.push('/TestData')
+                                        _this.$router.push('/GetTestUser')
                                     }
                                 });
                             }else {
