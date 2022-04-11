@@ -63,7 +63,9 @@
                             if (resp != null){
                                 _this.$alert("用户\"" + _this.ruleForm.username + "\"添加成功!", '消息', {
                                     confirmButtonText: '确定',
-                                    callback: _this.$router.push('/GetTestUser')
+                                    callback: action => {
+                                        _this.$router.push('/GetTestUser')
+                                    }
                                 });
                                 // _this.$message('添加成功')  // 只在界面上方显示'添加成功'
                                 // alert('Create TestUser success')
