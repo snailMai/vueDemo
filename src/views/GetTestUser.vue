@@ -59,18 +59,19 @@
                 console.log(row);
                 const _this = this
                 // axios.delete('http://localhost:8081/testuser/' + row.username).then(function(resp){
-                axios.delete(this.TESTUSERGLOBAL.DELETETESTUSER + row.username).then(function(resp){
+                axios.delete(this.TESTUSERGLOBAL.DELETETESTUSER.replace("{}", row.username)).then(function(resp){
                     if (resp != null){
                         _this.$alert("用户\"" + row.username + "\"删除成功!", '消息', {
                             confirmButtonText: '确定',
-                            callback:
+                            callback: action => {
                                 //_this.$router.push('/TestData')
                                 //动态刷新  // js语法
                                 window.location.reload()
+                            }
 
                         });
                     }else {
-                        alert(resp + ':' + 'Update TestUser Failed, please check your input')
+                        alert(resp + ':' + 'delete TestUser Failed')
                     }
                 })
             },
