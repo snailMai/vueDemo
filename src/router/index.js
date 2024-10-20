@@ -5,6 +5,8 @@ import Menu from "../views/Menu"
 import GetTestUser  from "../views/GetTestUser";
 import AddTestUser  from "../views/AddTestUser";
 import UpdateTestUser  from "../views/UpdateTestUser";
+import ToolsCryption  from "../views/ToolsCryption";
+import GetRandomPWD  from "../views/GetRandomPWD";
 import About from "../views/About"
 
 Vue.use(VueRouter)
@@ -25,13 +27,27 @@ const routes = [
       },
       {
         path: '/GetTestUser',
-        name: 'GetTestUser',
+        name: '所有用户',
         component: GetTestUser
       },
       {
         path: '/AddTestUser',
-        name: '注册TestUser',
+        name: '注册用户',
         component: AddTestUser
+      }
+      // 暂时丢这
+      ,{
+        path: '/UpdateTestUser',
+        name: '更新用户',
+        component: UpdateTestUser
+      },{
+        path: '/ToolsCryption',
+        name: '加密工具',
+        component: ToolsCryption
+      },{
+        path: '/GetRandomPWD',
+        name: '获取随机密码',
+        component: GetRandomPWD
       }
     ]
   },
@@ -55,7 +71,7 @@ const routes = [
         component: () => import('../views/TestUser')
       },
       {
-        path: '/about',
+        path: '/About',
         name: 'About',
         component: About
       },
