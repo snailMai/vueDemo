@@ -1,125 +1,62 @@
+<script setup>
+import { onBeforeUnmount, reactive, ref } from 'vue'
+import { encryptText, decryptText } from '../api/tools.js'
+import { validateCipherInput } from '../forms/validation.js'
+import { useToolRequest } from '../composables/useToolRequest.js'
+import ToolResult from '../components/ToolResult.vue'
+
+const form = reactive({ key: '', pwd: '' })
+const mode = ref('encrypt')
+const { state, run, reset } = useToolRequest()
+
+function submit() {
+  run(signal => {
+    const input = validateCipherInput(form, mode.value)
+    return mode.value === 'encrypt' ? encryptText(input, signal) : decryptText(input, signal)
+  })
+}
+
+function resetForm() {
+  reset()
+  form.key = ''
+  form.pwd = ''
+}
+
+function changeMode() { reset() }
+onBeforeUnmount(reset)
+</script>
 
 <template>
-<!--    model用来绑定数据，rule是用来绑定校验规则,ref,传递参数 -->
-    <el-form style="width: 60%" :model="ruleForm" :rules="rules" ref="ruleForm" label-width="100px" class="demo-ruleForm">
-<!--el-form-item元素的prop属性绑定字段名name，表单验证时，就会验证el-input元素绑定的变量ruleForm.name的值是否符合验证规则-->
-<!--ruleForm 获取 prop传入的信息-->
-        <el-form-item label="密钥" prop="key">
-            <el-input v-model="ruleForm.key"></el-input>
-        </el-form-item>
-        <el-form-item label="密码" prop="pwd">
-            <el-input v-model="ruleForm.pwd"></el-input>
-        </el-form-item>
-
-        <el-form-item>
-            <el-button type="primary" @click="submitForm('ruleForm')">加密</el-button>
-            <el-button type="primary" @click="submitFormDec('ruleForm')">解密</el-button>
-            <el-button @click="resetForm('ruleForm')">重置</el-button>
-            <el-button @click="test">test</el-button>
-        </el-form-item>
-    </el-form>
+  <section class="page tool-page">
+    <p class="eyebrow">TEXT UTILITY / 01</p>
+    <h1>文本加解密</h1>
+    <p class="page-description">一把密钥，一段文本。加密新内容，或解密已有内容。</p>
+    <form class="tool-form" novalidate :aria-busy="state.pending" @submit.prevent="submit" @reset.prevent="resetForm">
+      <fieldset :disabled="state.pending" class="form-fields">
+        <legend class="visually-hidden">加解密输入</legend>
+        <div class="mode-picker" role="group" aria-label="操作方式">
+          <label :class="{ selected: mode === 'encrypt' }"><input v-model="mode" type="radio" value="encrypt" name="mode" @change="changeMode">加密文本</label>
+          <label :class="{ selected: mode === 'decrypt' }"><input v-model="mode" type="radio" value="decrypt" name="mode" @change="changeMode">解密文本</label>
+        </div>
+        <div class="form-field">
+          <label for="cipher-key">密钥<span class="required-label">必填</span></label>
+          <input id="cipher-key" v-model="form.key" type="password" autocomplete="off" spellcheck="false" aria-describedby="key-hint" required>
+          <p id="key-hint" class="field-hint">使用同一把密钥，空格会原样保留。最多 1 KiB，按 UTF-8 字节计算。</p>
+        </div>
+        <div class="form-field">
+          <label for="cipher-text">{{ mode === 'encrypt' ? '待加密文本' : '待解密密文' }}</label>
+          <textarea id="cipher-text" v-model="form.pwd" rows="7" autocomplete="off" spellcheck="false" aria-describedby="text-hint" :placeholder="mode === 'encrypt' ? '输入或粘贴文本…' : '粘贴完整密文…'"></textarea>
+          <p id="text-hint" class="field-hint">{{ mode === 'encrypt' ? '支持中文、多行和空文本，最多 64 KiB。' : '请保留完整密文，支持换行，最多 128 KiB。' }}按 UTF-8 字节计算，超限不会截断。</p>
+        </div>
+      </fieldset>
+      <p v-if="state.error" class="error-message" role="alert">{{ state.error }}</p>
+      <div class="form-actions">
+        <button class="button button-primary" type="submit" :disabled="state.pending">{{ state.pending ? '处理中…' : mode === 'encrypt' ? '加密文本' : '解密文本' }}</button>
+        <button class="button" type="reset">{{ state.pending ? '取消并重置' : '重置' }}</button>
+        <span class="request-status" role="status">{{ state.pending ? '正在处理，请稍候。' : '' }}</span>
+      </div>
+    </form>
+    <ToolResult :result="state.result" :title="mode === 'encrypt' ? '加密结果' : '解密结果'" />
+    <p class="privacy-note">输入会发送给本站服务处理，请在可信的 HTTPS 页面使用。当前工具兼容旧密文，不适合需要验证内容是否被篡改的场景。</p>
+  </section>
 </template>
-
-
-<script>
-    export default {
-        data() {
-            return {
-                ruleForm: {
-                    key: '',  // ''填入就是默认值
-                    pwd: ''
-                },
-                rules: {
-                    key: [
-                        // required是否必须，message提示信息（不填时），trigger什么时候触发，blur，焦点不在这一行时
-                        { required: true, message: '加密密钥不能为空', trigger: 'blur' },
-                        // { min: 2, max: 20, message: '长度在 2 到 20 个字符', trigger: 'blur' }
-                    ],
-                    pwd: [
-                        { required: true, message: '加密/解密的密码不能为空', trigger: 'blur' },
-                        // { min: 1, max: 3, message: '长度在 1 到 3 个字符', trigger: 'blur' }
-                    ]
-                }
-            };
-        },
-        methods: {
-            test(){
-                // console.log(this.ruleForm)
-                // alert(this.ruleForm) 只会输出对象
-                alert(this.ruleForm.key + " : " + this.ruleForm.pwd)
-            },
-            submitForm(formName) {
-                const _this = this // 箭头函数可以使用this
-                // this.$refs[formName] 获取formName内容
-                this.$refs[formName].validate((valid) => {
-                    if (valid) {
-                        // console.log(this.ruleForm)
-                        // alert('submit!');
-                        // axios.post('http://localhost:8081/tools/encryption', this.ruleForm).then(function (resp) {
-                        axios.post(this.TESTUSERGLOBAL.ENCRYPTION, this.ruleForm).then(function (resp) {
-                        // axios.post('http://localhost:8081/testuser/addTestUser/', this.ruleForm).then(function (resp) {
-                            // this.tableData=resp.data  // 这里边的this指的是回调  this 区分2
-
-                            // loading: true   // 加载,暂时是失败的
-                            if (resp != null){
-                                _this.$alert(resp.data, '加密结果', {
-                                    confirmButtonText: '确定',
-                                    // callback: action => {
-                                    //     _this.$router.push('/GetTestUser')
-                                    // }
-                                });
-                                // _this.$message('添加成功')  // 只在界面上方显示'添加成功'
-                                // alert('Create TestUser success')
-                                // _this.$router.push('/testuser')  // 跳转到/testuser
-                            }else {
-                                alert('Create TestUser Failed, please check your input')
-                            }
-
-                        })
-                    } else {
-                        console.log('error submit!!');
-                        alert('please check your input')
-                        // return false;
-                    }
-                });
-            },submitFormDec(formName) {
-                const _this = this // 箭头函数可以使用this
-                // this.$refs[formName] 获取formName内容
-                this.$refs[formName].validate((valid) => {
-                    if (valid) {
-                        // console.log(this.ruleForm)
-                        // alert('submit!');
-                        axios.post('http://localhost:8081/tools/decryption', this.ruleForm).then(function (resp) {
-                        // axios.post(this.TESTUSERGLOBAL.ENCRYPTION, this.ruleForm).then(function (resp) {
-                        // axios.post('http://localhost:8081/testuser/addTestUser/', this.ruleForm).then(function (resp) {
-                            // this.tableData=resp.data  // 这里边的this指的是回调  this 区分2
-
-                            // loading: true   // 加载,暂时是失败的
-                            if (resp != null){
-                                _this.$alert(resp.data, '解密结果', {
-                                    confirmButtonText: '确定',
-                                    // callback: action => {
-                                    //     _this.$router.push('/GetTestUser')
-                                    // }
-                                });
-                                // _this.$message('添加成功')  // 只在界面上方显示'添加成功'
-                                // alert('Create TestUser success')
-                                // _this.$router.push('/testuser')  // 跳转到/testuser
-                            }else {
-                                alert('Create TestUser Failed, please check your input')
-                            }
-
-                        })
-                    } else {
-                        console.log('error submit!!');
-                        alert('please check your input')
-                        // return false;
-                    }
-                });
-            },
-            resetForm(formName) {
-                this.$refs[formName].resetFields();
-            }
-        }
-    }
-</script>
