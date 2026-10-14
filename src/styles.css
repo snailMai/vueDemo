@@ -1,3 +1,4 @@
+/* 全站字体、底色和语义色变量，工具页面共用同一套视觉样式。 */
 :root {
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif;
   color: #232b25;
@@ -10,6 +11,7 @@
   --border: #dde3da;
 }
 
+/* 基础元素与键盘焦点，保留原生表单和链接的可访问交互。 */
 * { box-sizing: border-box; }
 body { margin: 0; }
 a { color: inherit; text-decoration: none; }
@@ -18,6 +20,7 @@ button, a, input, textarea { -webkit-tap-highlight-color: transparent; }
 button { cursor: pointer; }
 button:disabled { cursor: wait; opacity: .65; }
 :focus-visible { outline: 3px solid #6d9b7b; outline-offset: 4px; }
+/* 桌面侧栏布局；minmax(0, 1fr) 避免长文本撑大内容列。 */
 .app-shell { min-height: 100vh; display: grid; grid-template-columns: 232px minmax(0, 1fr); }
 .sidebar { display: flex; flex-direction: column; padding: 40px 24px 30px; background: #edf0e8; border-right: 1px solid var(--border); }
 .brand { display: flex; gap: 12px; align-items: center; font-size: 19px; font-weight: 650; letter-spacing: .03em; }
@@ -40,6 +43,7 @@ h1 { margin: 0; font-size: clamp(29px, 3vw, 42px); font-weight: 600; letter-spac
 .home-page h1 { font-size: clamp(33px, 3.7vw, 49px); line-height: 1.45; }
 .accent { color: var(--accent); }
 .page-description { margin: 21px 0 35px; color: var(--muted); font-size: 14px; line-height: 1.9; }
+/* 首页工具卡片，窄屏下由媒体查询改为单列。 */
 .tool-cards { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 24px; margin-top: 42px; }
 .tool-card { display: flex; flex-direction: column; padding: 29px; border: 1px solid var(--border); border-radius: 14px; background: #fff; transition: border-color .15s; }
 .tool-card:hover { border-color: #7b9a7d; }
@@ -51,6 +55,7 @@ h1 { margin: 0; font-size: clamp(29px, 3vw, 42px); font-weight: 600; letter-spac
 .tool-card p { margin: 0; color: var(--muted); font-size: 13px; line-height: 1.9; }
 .card-action { display: flex; justify-content: space-between; margin-top: auto; padding-top: 32px; color: var(--accent); font-size: 12px; font-weight: 600; }
 .privacy-note { margin: 25px 0 0; color: var(--muted); font-size: 12px; line-height: 1.9; }
+/* 共用表单、模式选择与按钮状态，页面无需各自重复定义。 */
 .tool-form { padding: 28px; border: 1px solid var(--border); border-radius: 14px; background: #fff; }
 .form-fields { min-width: 0; margin: 0; padding: 0; border: 0; }
 .form-field + .form-field { margin-top: 25px; }
@@ -77,13 +82,16 @@ h1 { margin: 0; font-size: clamp(29px, 3vw, 42px); font-weight: 600; letter-spac
 .result-panel { margin-top: 24px; padding: 25px 28px; border: 1px solid var(--border); border-radius: 14px; background: #eff3eb; }
 .result-heading { display: flex; align-items: center; justify-content: space-between; gap: 16px; }
 .result-heading h2 { margin: 0; font-size: 15px; font-weight: 600; }
+/* 保留原始换行，同时允许长密文视觉折行；样式不会修改复制到剪贴板的字符串。 */
 .result-text { min-height: 38px; max-height: 460px; overflow: auto; white-space: pre-wrap; overflow-wrap: anywhere; font: 14px/1.9 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
 .copy-message { min-height: 18px; margin: 5px 0 0; }
 .footer { display: flex; justify-content: space-between; gap: 16px; padding: 22px 48px; border-top: 1px solid var(--border); color: #7b8378; font-size: 11px; }
+/* 辅助导航平时不占空间，获得焦点后显示；隐藏标签仍供辅助技术读取。 */
 .skip-link { position: fixed; z-index: 10; top: -100px; left: 16px; padding: 12px; background: white; }
 .skip-link:focus { top: 16px; }
 .visually-hidden { position: absolute; width: 1px; height: 1px; padding: 0; overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; border: 0; }
 
+/* 中等宽度收紧侧栏和留白，不改变主要内容结构。 */
 @media (max-width: 1000px) {
   .app-shell { grid-template-columns: 200px minmax(0, 1fr); }
   .sidebar { padding-inline: 18px; }
@@ -93,6 +101,7 @@ h1 { margin: 0; font-size: clamp(29px, 3vw, 42px); font-weight: 600; letter-spac
   .tool-card { padding: 22px; }
 }
 
+/* 手机端切换顶部导航与单列表单，输入字号保持 16px，减少聚焦时的自动缩放。 */
 @media (max-width: 700px) {
   .app-shell { display: block; }
   .sidebar { padding: 22px 20px 14px; border-right: 0; border-bottom: 1px solid var(--border); }

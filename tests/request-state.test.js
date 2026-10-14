@@ -1,3 +1,4 @@
+// 手动控制 Promise 完成顺序，复现重复提交、取消与迟到响应的竞态。
 import assert from 'node:assert/strict'
 import { test } from 'node:test'
 import { useToolRequest } from '../src/composables/useToolRequest.js'
@@ -56,6 +57,7 @@ test('重置取消请求，迟到结果不能覆盖后续请求', async () => {
   assert.equal(signal.aborted, true)
   assert.deepEqual({ ...state }, { pending: false, result: null, error: '' })
   const second = run(() => current.promise)
+  // 旧请求先结束也不能清除新请求的 pending 或覆盖结果。
   old.resolve('stale')
   await first
   assert.deepEqual({ ...state }, { pending: true, result: null, error: '' })

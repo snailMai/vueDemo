@@ -1,8 +1,10 @@
+// 所有剪贴板操作均被模拟，测试不读写用户的真实系统剪贴板。
 import assert from 'node:assert/strict'
 import { test } from 'node:test'
 import { effectScope, ref } from 'vue'
 import { useResultCopy } from '../src/composables/useResultCopy.js'
 
+// 独立作用域模拟组件生命周期，延迟 Promise 用于控制复制完成时机。
 function setup(t, value = 'old') {
   const pending = Promise.withResolvers()
   const copied = []
@@ -47,6 +49,7 @@ test('结果变化、重置、恢复相同文本后忽略迟到的成功和失�
     for (const failed of [false, true]) {
       const copy = setup(t)
       const operation = copy.copyResult()
+      // 同一轮先清空再恢复旧值，确保按版本失效而不是只比较最终文本。
       copy.result.value = change === 'old-again' ? null : change
       if (change === 'old-again') copy.result.value = 'old'
       if (failed) copy.pending.reject(new Error('stale failure'))

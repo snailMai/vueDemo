@@ -5,10 +5,12 @@ import { validateCipherInput } from '../forms/validation.js'
 import { useToolRequest } from '../composables/useToolRequest.js'
 import ToolResult from '../components/ToolResult.vue'
 
+// 敏感输入仅保存在当前页面内存中，不写入日志、URL 或浏览器持久存储。
 const form = reactive({ key: '', pwd: '' })
 const mode = ref('encrypt')
 const { state, run, reset } = useToolRequest()
 
+// 在请求状态管理内部校验，校验失败也会恢复按钮并显示安全提示。
 function submit() {
   run(signal => {
     const input = validateCipherInput(form, mode.value)
@@ -16,12 +18,14 @@ function submit() {
   })
 }
 
+// 先取消请求并失效旧结果，再清空输入；不代表可撤销已发出的网络请求。
 function resetForm() {
   reset()
   form.key = ''
   form.pwd = ''
 }
 
+// 切换模式保留输入，只清除结果和状态；离开页面同样取消未完成操作。
 function changeMode() { reset() }
 onBeforeUnmount(reset)
 </script>
@@ -31,6 +35,7 @@ onBeforeUnmount(reset)
     <p class="eyebrow">TEXT UTILITY / 01</p>
     <h1>文本加解密</h1>
     <p class="page-description">一把密钥，一段文本。加密新内容，或解密已有内容。</p>
+    <!-- 使用统一自定义校验；等待时禁用输入，重置按钮保留可用以便取消。 -->
     <form class="tool-form" novalidate :aria-busy="state.pending" @submit.prevent="submit" @reset.prevent="resetForm">
       <fieldset :disabled="state.pending" class="form-fields">
         <legend class="visually-hidden">加解密输入</legend>

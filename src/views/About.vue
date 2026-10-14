@@ -1,8 +1,9 @@
 <template>
+  <!-- 首页只提供工具入口，不加载私人会话或待办内容。 -->
   <section class="page home-page">
     <p class="eyebrow">YOUR EVERYDAY TOOLS</p>
     <h1>小工具，<br><span class="accent">解决手边的小事。</span></h1>
-    <p class="page-description">处理一段文本，或生成一组随机密码。<br>选择一个工具，即刻开始。</p>
+    <p class="page-description">处理文本、生成密码，或管理待办。<br>选择一个工具，即刻开始。</p>
     <div class="tool-cards">
       <RouterLink to="/ToolsCryption" class="tool-card">
         <div class="card-top"><span class="card-icon" aria-hidden="true">Aa</span><span class="card-number">01</span></div>
@@ -14,6 +15,12 @@
         <div class="card-top"><span class="card-icon password-icon" aria-hidden="true">＊</span><span class="card-number">02</span></div>
         <h2>随机密码</h2>
         <p>自定义密码位数与生成数量，一次生成多条，按行查看和复制。</p>
+        <span class="card-action">打开工具 <span aria-hidden="true">↗</span></span>
+      </RouterLink>
+      <RouterLink to="/Todoist" class="tool-card">
+        <div class="card-top"><span class="card-icon" aria-hidden="true">✓</span><span class="card-number">03</span></div>
+        <h2>todoist</h2>
+        <p>输入指令，添加任务、修改任务，或输出全部待办。</p>
         <span class="card-action">打开工具 <span aria-hidden="true">↗</span></span>
       </RouterLink>
     </div>

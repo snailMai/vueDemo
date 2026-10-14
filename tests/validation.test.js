@@ -1,3 +1,4 @@
+// 纯函数校验回归：覆盖 UTF-8 字节边界、参数默认值及原始文本保真。
 import assert from 'node:assert/strict'
 import { test } from 'node:test'
 import { CIPHER_LIMITS, parsePasswordParameters, validateCipherInput } from '../src/forms/validation.js'
@@ -9,6 +10,7 @@ test('密钥、明文和密文按 UTF-8 字节校验上下边界', () => {
       if (offset > 0) assert.throws(() => validateCipherInput(input, mode), /密钥不能超过/)
       else assert.deepEqual(validateCipherInput(input, mode), input)
       const size = CIPHER_LIMITS[mode] + offset
+      // 中文密钥恰为 1024 字节，emoji 与 ASCII 组合精确构造正文边界。
       const unicode = { key: '密'.repeat(341) + 'a', pwd: '🔐'.repeat(Math.floor(size / 4)) + 'x'.repeat(size % 4) }
       if (offset > 0) assert.throws(() => validateCipherInput(unicode, mode), /文不能超过/)
       else assert.deepEqual(validateCipherInput(unicode, mode), unicode)

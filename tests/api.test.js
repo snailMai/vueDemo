@@ -1,3 +1,4 @@
+// 使用模拟 fetch 验证接口契约，不连接线上服务；测试输入均为合成数据。
 import assert from 'node:assert/strict'
 import { test } from 'node:test'
 import { requestText, ToolRequestError } from '../src/api/client.js'
@@ -41,6 +42,7 @@ test('密码接口保留参数名、GET 和末尾 LF', async t => {
 })
 
 test('错误只使用约定 code 的固定提示，不回显服务端正文', async t => {
+  // 除未知 code 外，还覆盖对象原型属性名，防止白名单判断遗漏继承属性。
   const cases = [
     ['INVALID_REQUEST', '请求参数无效，请检查后重试。'],
     ['DECRYPTION_FAILED', '解密失败，请检查密钥和密文。'],
@@ -79,6 +81,7 @@ test('断网映射为可重试的提示', async t => {
 })
 
 test('超时中止请求并给出明确提示', async t => {
+  // 推进虚拟时钟触发超时，不让测试真实等待 15 秒。
   t.mock.timers.enable({ apis: ['setTimeout'] })
   let requestSignal
   t.mock.method(globalThis, 'fetch', async (_, { signal }) => {
