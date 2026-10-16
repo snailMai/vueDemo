@@ -31,7 +31,8 @@ export function useTodoistRequest(send = submitTodoist) {
     } catch (error) {
       if (!disposed) {
         // 再次点击只取回复，不重发指令；结果状态不持久化到浏览器。
-        state.uncertain = state.uncertain || !(error instanceof TodoistRequestError) || error.uncertain
+        state.uncertain = !(error instanceof TodoistRequestError) || error.uncertain
+          || (state.uncertain && !error.notSubmitted)
         state.error = error instanceof TodoistRequestError ? error.message : '结果尚未确认，请查询原请求。'
       }
     } finally {

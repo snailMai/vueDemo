@@ -2,6 +2,12 @@
 const messages = {
   INVALID_REQUEST: '输入无效，请检查内容后再提交。',
   NOT_CONNECTED: '尚未连接 AI Todoist 会话，未发送指令。',
+  CONNECT_START_FAILED: '无法启动会话连接，未发送指令。',
+  CONNECT_INIT_FAILED: '会话连接初始化失败，未发送指令。',
+  SESSION_IN_USE: '原 AI Todoist 会话的写入连接被其他客户端持有，未发送指令；这不代表上一条命令仍在执行。',
+  SESSION_RESUME_FAILED: '未找到原 AI Todoist 会话的可用桌面连接，未发送指令。',
+  SESSION_NOT_WRITABLE: '原 AI Todoist 会话未获得工作区写入权限，未发送指令。',
+  REQUEST_REJECTED: '原 AI Todoist 会话拒绝了本次命令，未开始执行。',
   INPUT_TOO_LARGE: '输入过长，请缩短后再提交。',
   NEEDS_ATTENTION: '原会话需要交互确认，请到 AI Todoist 会话查看；不要直接重复提交。',
   RESULT_NOT_FOUND: '请求结果已过期或服务已重启，请到 AI Todoist 会话核对，不要直接重复提交。',
@@ -10,8 +16,14 @@ const messages = {
 }
 
 export class TodoistRequestError extends Error {
-  constructor(message, uncertain = false) { super(message); this.uncertain = uncertain }
+  constructor(message, uncertain = false, notSubmitted = false) {
+    super(message); this.uncertain = uncertain; this.notSubmitted = notSubmitted
+  }
 }
+
+const notSubmittedCodes = new Set(['INVALID_REQUEST', 'INPUT_TOO_LARGE', 'NOT_CONNECTED',
+  'CONNECT_START_FAILED', 'CONNECT_INIT_FAILED', 'SESSION_IN_USE', 'SESSION_RESUME_FAILED',
+  'SESSION_NOT_WRITABLE', 'REQUEST_REJECTED'])
 
 export const todoistTaskCommands = Object.freeze(['添加任务', '完成任务', '修改任务', '删除任务'])
 
@@ -22,8 +34,8 @@ export function composeTodoistTask(command, value) {
 }
 
 export function validateTodoistInput(value) {
-  const input = typeof value === 'string' ? value.trim() : ''
-  if (!input) throw new TodoistRequestError('请输入指令。')
+  const input = typeof value === 'string' ? value : ''
+  if (!input.trim()) throw new TodoistRequestError('请输入指令。')
   if (new TextEncoder().encode(input).length > 16384) throw new TodoistRequestError(messages.INPUT_TOO_LARGE)
   // 页面展示常用命令，不以正则阻止自然语言输入。
   return input
@@ -60,10 +72,12 @@ export async function submitTodoist(input, requestId, signal, resume = false) {
         data = response.headers.get('content-type')?.includes('application/json') ? await response.json().catch(() => null) : null
       } finally { clearTimeout(requestTimer) }
       if (!response.ok || data?.status === 'failed') {
+        if (data?.status === 'failed' && data.requestId !== requestId) throw new TodoistRequestError(messages.RESULT_UNKNOWN, true)
         const code = data?.code
         const message = Object.hasOwn(messages, code) ? messages[code] : messages.RESULT_UNKNOWN
-        const uncertain = query || !['INVALID_REQUEST', 'INPUT_TOO_LARGE', 'NOT_CONNECTED'].includes(code)
-        throw new TodoistRequestError(message, uncertain)
+        // 查询返回同一请求的确定拒绝结果，可解除未知状态；普通 HTTP 错误不能证明旧请求未执行。
+        const notSubmitted = notSubmittedCodes.has(code) && (!query || data?.status === 'failed')
+        throw new TodoistRequestError(message, !notSubmitted, notSubmitted)
       }
       if (data?.requestId !== requestId) throw new TodoistRequestError(messages.RESULT_UNKNOWN, true)
       if (data.status === 'completed' && typeof data.output === 'string') return data.output

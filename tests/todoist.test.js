@@ -11,7 +11,7 @@ test('todoist 是第四个入口，原有工具路径保留', () => {
 })
 
 test('保留自然语言和多行输入，不追加会话提示词', () => {
-  for (const value of ['输出全部待办', '添加任务：整理合成提纲\n优先级 P2', '完成任务：合成任务', '修改任务：将合成任务的备注改为测试', '帮我添加一个任务', '删除任务：测试']) {
+  for (const value of ['输出全部待办', '添加任务：整理合成提纲\n优先级 P2', '完成任务：合成任务', '修改任务：将合成任务的备注改为测试', '帮我添加一个任务', '删除任务：测试', '  合成内容\n保留末尾空格  \n']) {
     assert.equal(validateTodoistInput(value), value)
   }
   for (const value of ['', ' ', null]) {
@@ -24,6 +24,7 @@ test('四种单选操作只组合命令和普通文本框内容', () => {
   assert.deepEqual(todoistTaskCommands, ['添加任务', '完成任务', '修改任务', '删除任务'])
   for (const command of todoistTaskCommands) {
     assert.equal(composeTodoistTask(command, '合成任务\n备注：原文'), `${command}：合成任务\n备注：原文`)
+    assert.equal(composeTodoistTask(command, '  合成文本  \n'), `${command}：  合成文本  \n`)
     assert.throws(() => composeTodoistTask(command, ' '), /请输入指令/)
   }
   assert.throws(() => composeTodoistTask('输出全部待办', '不应组合'), /请选择任务操作/)
@@ -196,4 +197,50 @@ test('用户核对会话后可清除未知状态，不自动重新提交', async
   acknowledge()
   assert.equal(state.uncertain, false)
   assert.equal(calls, 1)
+})
+
+test('轮询得到同一请求的会话占用失败后恢复提交，不要求查询或确认原会话', async t => {
+  const methods = []
+  t.mock.method(globalThis, 'fetch', async (url, options) => {
+    methods.push(options.method)
+    const id = options.body ? JSON.parse(options.body).requestId : new URL(url, 'http://test').searchParams.get('requestId')
+    if (methods.length === 1) return Response.json({ requestId: id, status: 'running' }, { status: 202 })
+    return Response.json({ requestId: id, status: 'failed', code: 'SESSION_IN_USE', message: 'synthetic-private-value' })
+  })
+  const { state, run } = useTodoistRequest()
+  await run('完成任务：合成任务')
+  assert.deepEqual(methods, ['POST', 'GET'])
+  assert.equal(state.pending, false)
+  assert.equal(state.uncertain, false)
+  assert.match(state.error, /写入连接被其他客户端持有/)
+  assert.match(state.error, /未发送指令/)
+  assert.equal(state.error.includes('synthetic-private-value'), false)
+})
+
+test('未知状态查询确认未发送后可解除；不匹配的失败结果不能解除', async t => {
+  for (const requestId of ['test-id', 'another-id']) {
+    t.mock.method(globalThis, 'fetch', async () => Response.json({ requestId, status: 'failed', code: 'NOT_CONNECTED' }))
+    await assert.rejects(submitTodoist('合成输入', 'test-id', undefined, true), error => {
+      assert.equal(error.uncertain, requestId !== 'test-id')
+      assert.equal(error.notSubmitted, requestId === 'test-id')
+      return true
+    })
+    t.mock.restoreAll()
+  }
+  const { state, run } = useTodoistRequest(async (_, id, signal, resume) => {
+    if (!resume) throw new TodoistRequestError('等待超时', true)
+    throw new TodoistRequestError('会话占用，未发送', false, true)
+  })
+  await run('合成输入')
+  assert.equal(state.uncertain, true)
+  await run()
+  assert.equal(state.uncertain, false)
+})
+
+test('连接各阶段错误使用安全固定提示，不回显协议内容', async t => {
+  for (const code of ['CONNECT_START_FAILED', 'CONNECT_INIT_FAILED', 'SESSION_RESUME_FAILED', 'SESSION_NOT_WRITABLE', 'REQUEST_REJECTED']) {
+    t.mock.method(globalThis, 'fetch', async () => Response.json({ requestId: 'test-id', status: 'failed', code, message: 'synthetic-private-value' }))
+    await assert.rejects(submitTodoist('合成输入', 'test-id'), error => !error.uncertain && error.notSubmitted && !error.message.includes('synthetic-private-value'))
+    t.mock.restoreAll()
+  }
 })
