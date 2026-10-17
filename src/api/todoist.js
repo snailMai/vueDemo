@@ -12,7 +12,8 @@ const messages = {
   NEEDS_ATTENTION: '原会话需要交互确认，请到 AI Todoist 会话查看；不要直接重复提交。',
   RESULT_NOT_FOUND: '请求结果已过期或服务已重启，请到 AI Todoist 会话核对，不要直接重复提交。',
   RESULT_UNKNOWN: '执行结果尚未确认，请到 AI Todoist 会话核对，不要重复添加。',
-  REQUEST_MISMATCH: '请求标识与原输入不一致，请先核对原会话。'
+  REQUEST_MISMATCH: '请求标识与原输入不一致，请先核对原会话。',
+  TASKS_UNAVAILABLE: '任务列表暂时不可用，请稍后刷新重试。'
 }
 
 export class TodoistRequestError extends Error {
@@ -50,7 +51,7 @@ function pause(signal) {
   })
 }
 
-export async function submitTodoist(input, requestId, signal, resume = false) {
+export async function submitTodoist(input, requestId, signal, resume = false, onStatus = null) {
   const controller = new AbortController()
   const abort = () => controller.abort()
   signal?.addEventListener('abort', abort, { once: true })
@@ -81,7 +82,14 @@ export async function submitTodoist(input, requestId, signal, resume = false) {
       }
       if (data?.requestId !== requestId) throw new TodoistRequestError(messages.RESULT_UNKNOWN, true)
       if (data.status === 'completed' && typeof data.output === 'string') return data.output
-      if (data.status !== 'running') throw new TodoistRequestError(messages.RESULT_UNKNOWN, true)
+      // 结果未知是明确的终态：可能已执行，绝不自动重发，只能再按 requestId 查询。
+      if (data.status === 'unknown') {
+        const message = Object.hasOwn(messages, data.code) ? messages[data.code] : messages.RESULT_UNKNOWN
+        throw new TodoistRequestError(message, true)
+      }
+      // 队列化后提交可能仍在排队，排队中与执行中都继续轮询。
+      if (data.status !== 'running' && data.status !== 'queued') throw new TodoistRequestError(messages.RESULT_UNKNOWN, true)
+      onStatus?.(data.status)
       query = true
       await pause(controller.signal)
     }
@@ -92,4 +100,41 @@ export async function submitTodoist(input, requestId, signal, resume = false) {
     clearTimeout(totalTimer)
     signal?.removeEventListener('abort', abort)
   }
+}
+
+const taskPriorities = new Set(['P0', 'P1', 'P2', 'P3'])
+
+// 只读任务列表接口：后端解析任务文件返回结构化 JSON，不经会话、不携带请求正文。
+export async function fetchTodoistTasks(signal) {
+  const controller = new AbortController()
+  const abort = () => controller.abort()
+  signal?.addEventListener('abort', abort, { once: true })
+  if (signal?.aborted) abort()
+  const timer = setTimeout(abort, 20000)
+  let response, data
+  try {
+    response = await fetch('/api/todoist/tasks', {
+      method: 'GET', headers: { Accept: 'application/json' },
+      credentials: 'same-origin', cache: 'no-store', redirect: 'error', signal: controller.signal
+    })
+    data = response.headers.get('content-type')?.includes('application/json') ? await response.json().catch(() => null) : null
+  } catch (error) {
+    if (controller.signal.aborted && signal?.aborted) throw new DOMException('Aborted', 'AbortError')
+    throw new TodoistRequestError(messages.TASKS_UNAVAILABLE)
+  } finally {
+    clearTimeout(timer)
+    signal?.removeEventListener('abort', abort)
+  }
+  if (!response.ok) {
+    const code = data?.code
+    throw new TodoistRequestError(Object.hasOwn(messages, code) ? messages[code] : messages.TASKS_UNAVAILABLE)
+  }
+  if (!data || !Array.isArray(data.tasks)) throw new TodoistRequestError(messages.TASKS_UNAVAILABLE)
+  // 结构校验：任何一项不符合契约都不渲染，避免把异常响应当成任务列表。
+  for (const task of data.tasks) {
+    const valid = task && Number.isSafeInteger(task.id) && typeof task.content === 'string' && task.content
+      && taskPriorities.has(task.priority) && typeof task.due === 'string' && typeof task.overdue === 'boolean'
+    if (!valid) throw new TodoistRequestError(messages.TASKS_UNAVAILABLE)
+  }
+  return data.tasks
 }

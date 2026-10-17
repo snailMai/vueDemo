@@ -1,72 +1,478 @@
 <script setup>
-import { onBeforeUnmount, ref } from 'vue'
-import { useTodoistRequest } from '../composables/useTodoistRequest.js'
-import { composeTodoistTask, todoistTaskCommands } from '../api/todoist.js'
+// 任务列表页：列表数据来自后端只读任务文件接口；增删改经后端命令队列转发给原会话。
+// 提交即返回、可连续提交：本地立即乐观更新，失败回滚，结果未知不回滚也不重发。
+import { computed, nextTick, onBeforeUnmount, onMounted, ref } from 'vue'
+import { useTodoistQueue } from '../composables/useTodoistQueue.js'
+import { composeTodoistTask, fetchTodoistTasks, TodoistRequestError } from '../api/todoist.js'
 
-const input = ref('')
-const command = ref(todoistTaskCommands[0])
-const { state, run, dispose, acknowledge } = useTodoistRequest()
-function submitTask() {
-  // 未知结果时仍只查询原请求，不因当前选择或内容改变而重发操作。
-  if (state.uncertain) return run()
-  try { run(composeTodoistTask(command.value, input.value)) }
-  catch (error) { state.error = error.message }
+const NOTICE_TIMEOUT = 8000
+const todoistPriorities = Object.freeze(['P0', 'P1', 'P2', 'P3'])
+// 日志徽标的显示文本与样式类名。
+const statusMeta = {
+  排队中: { label: '排队中', className: 'queued' },
+  执行中: { label: '执行中', className: 'running' },
+  成功: { label: '成功', className: 'succeeded' },
+  失败: { label: '失败', className: 'failed' },
+  结果未知: { label: '结果未知', className: 'unknown' }
 }
-onBeforeUnmount(dispose)
+
+const tasks = ref([])
+const pendingAdds = ref([])
+const activePriority = ref('P2')
+const selected = ref(new Set())
+const addInput = ref('')
+const editInput = ref('')
+const editingId = ref(null)
+const editInputEl = ref(null)
+const loadedOnce = ref(false)
+const loading = ref(false)
+let loadController = null
+
+const { entries, submit, query, dispose } = useTodoistQueue()
+
+// 回复文本只进短暂提示条，不解析进列表。
+const notice = ref(null)
+let noticeTimer = null
+function showNotice(kind, text, sticky = false) {
+  clearTimeout(noticeTimer)
+  notice.value = { kind, text }
+  if (!sticky) noticeTimer = setTimeout(() => { notice.value = null }, NOTICE_TIMEOUT)
+}
+
+const counts = computed(() => {
+  const result = { P0: 0, P1: 0, P2: 0, P3: 0 }
+  for (const task of tasks.value) result[task.priority]++
+  return result
+})
+const visibleTasks = computed(() => tasks.value.filter(task => task.priority === activePriority.value))
+const viewTitle = computed(() => `${activePriority.value} 待办`)
+const selectedIds = computed(() => [...selected.value].sort((a, b) => a - b))
+const selectedCount = computed(() => selected.value.size)
+const selectionInfo = computed(() =>
+  selectedCount.value ? `已选 ${selectedCount.value} 项（编号：${selectedIds.value.join('、')}）` : '未勾选任务')
+const allChecked = computed(() => visibleTasks.value.length > 0 && visibleTasks.value.every(task => selected.value.has(task.id)))
+const partlyChecked = computed(() => !allChecked.value && visibleTasks.value.some(task => selected.value.has(task.id)))
+const showEdit = computed(() => editingId.value !== null && selectedCount.value === 1)
+
+// 页面打开与点刷新都调只读接口；切换优先级只是本地过滤，不调接口。
+async function loadTasks() {
+  if (loading.value) return
+  loadController?.abort()
+  const controller = new AbortController()
+  loadController = controller
+  loading.value = true
+  try {
+    const list = await fetchTodoistTasks(controller.signal)
+    tasks.value = list
+    const alive = new Set(list.map(task => task.id))
+    selected.value = new Set([...selected.value].filter(id => alive.has(id)))
+    if (!loadedOnce.value) {
+      loadedOnce.value = true
+      const first = todoistPriorities.find(priority => list.some(task => task.priority === priority))
+      if (first) activePriority.value = first
+    }
+  } catch (error) {
+    if (error?.name !== 'AbortError') {
+      showNotice('error', error instanceof TodoistRequestError ? error.message : '任务列表暂时不可用，请稍后刷新重试。')
+    }
+  } finally {
+    loading.value = false
+  }
+}
+
+function composeOrNotice(command, value) {
+  try {
+    return composeTodoistTask(command, value)
+  } catch (error) {
+    showNotice('error', error instanceof TodoistRequestError ? error.message : '输入无效，请检查内容后再提交。')
+    return null
+  }
+}
+
+function submitCommand(command, hooks) {
+  try {
+    const entry = submit(command, hooks)
+    showNotice('pending', `已提交：${entry.command}，进入队列。`)
+    return entry
+  } catch (error) {
+    showNotice('error', error instanceof TodoistRequestError ? error.message : '输入无效，请检查内容后再提交。')
+    return null
+  }
+}
+
+// 命令成功落定后重新读文件对账；添加的「待同步」条目在对账后移除，由真实编号条目替代。
+async function settleEntry(entry) {
+  await loadTasks()
+  pendingAdds.value = pendingAdds.value.filter(item => item.key !== entry.requestId)
+  showNotice('ok', `✓ ${entry.command} 执行成功，列表已更新。`)
+}
+
+function addTask() {
+  const command = composeOrNotice('添加任务', addInput.value)
+  if (!command) return
+  const content = addInput.value.trim()
+  addInput.value = ''
+  submitCommand(command, {
+    // 待同步条目无编号、不可勾选，对账后换成真实编号。
+    onSubmitted: entry => { pendingAdds.value = [...pendingAdds.value, { key: entry.requestId, content }] },
+    onSuccess: settleEntry,
+    onFailure: entry => {
+      pendingAdds.value = pendingAdds.value.filter(item => item.key !== entry.requestId)
+      showNotice('error', `添加失败：${entry.detail}`)
+    }
+  })
+}
+
+function completeSelected() {
+  if (!selectedCount.value) return
+  const ids = selectedIds.value
+  const command = composeOrNotice('完成任务', ids.join('、'))
+  if (!command) return
+  const idSet = new Set(ids)
+  const removed = tasks.value.filter(task => idSet.has(task.id))
+  submitCommand(command, {
+    onSubmitted: () => {
+      tasks.value = tasks.value.filter(task => !idSet.has(task.id))
+      selected.value = new Set()
+      editingId.value = null
+    },
+    onSuccess: settleEntry,
+    onFailure: entry => {
+      // 失败回滚：把本地移除的任务按编号放回原位。
+      tasks.value = [...tasks.value, ...removed].sort((a, b) => a.id - b.id)
+      showNotice('error', `完成失败：${entry.detail}`)
+    }
+  })
+}
+
+function deleteSelected() {
+  if (!selectedCount.value) return
+  const ids = selectedIds.value
+  const command = composeOrNotice('删除任务', ids.join('、'))
+  if (!command) return
+  const idSet = new Set(ids)
+  const removed = tasks.value.filter(task => idSet.has(task.id))
+  submitCommand(command, {
+    onSubmitted: () => {
+      tasks.value = tasks.value.filter(task => !idSet.has(task.id))
+      selected.value = new Set()
+      editingId.value = null
+    },
+    onSuccess: settleEntry,
+    onFailure: entry => {
+      tasks.value = [...tasks.value, ...removed].sort((a, b) => a.id - b.id)
+      showNotice('error', `删除失败：${entry.detail}`)
+    }
+  })
+}
+
+function startEdit() {
+  if (selectedCount.value !== 1) return
+  const id = selectedIds.value[0]
+  const task = tasks.value.find(item => item.id === id)
+  editingId.value = id
+  editInput.value = task?.content ?? ''
+  nextTick(() => editInputEl.value?.focus())
+}
+
+function confirmEdit() {
+  if (editingId.value === null || !editInput.value.trim()) return
+  const id = editingId.value
+  const content = editInput.value
+  const command = composeOrNotice('修改任务', `${id}：${content}`)
+  if (!command) return
+  const previous = tasks.value.find(item => item.id === id)?.content
+  submitCommand(command, {
+    onSubmitted: () => {
+      const task = tasks.value.find(item => item.id === id)
+      if (task) task.content = content
+      editingId.value = null
+      selected.value = new Set()
+    },
+    onSuccess: settleEntry,
+    onFailure: entry => {
+      const task = tasks.value.find(item => item.id === id)
+      if (task && previous !== undefined) task.content = previous
+      showNotice('error', `修改失败：${entry.detail}`)
+    }
+  })
+}
+
+function cancelEdit() {
+  editingId.value = null
+}
+
+// 切换优先级是纯前端过滤，不调接口；勾选集保留，便于跨视图批量操作。
+function switchPriority(priority) {
+  activePriority.value = priority
+  editingId.value = null
+}
+
+function toggleTask(id, checked) {
+  const next = new Set(selected.value)
+  if (checked) next.add(id)
+  else next.delete(id)
+  selected.value = next
+}
+
+function toggleAll(checked) {
+  const next = new Set(selected.value)
+  for (const task of visibleTasks.value) {
+    if (checked) next.add(task.id)
+    else next.delete(task.id)
+  }
+  selected.value = next
+}
+
+function clearSelection() {
+  selected.value = new Set()
+}
+
+function formatTime(date) {
+  return date.toLocaleTimeString('zh-CN', { hour12: false })
+}
+
+onMounted(loadTasks)
+onBeforeUnmount(() => {
+  clearTimeout(noticeTimer)
+  loadController?.abort()
+  dispose()
+})
 </script>
 
 <template>
-  <section class="page tool-page todoist-page">
+  <section class="todoist-page">
     <h1 class="visually-hidden">todoist</h1>
-    <form class="tool-form" :aria-busy="state.pending" @submit.prevent="submitTask">
-      <fieldset class="form-fields" :disabled="state.pending || state.uncertain">
-        <legend class="visually-hidden">任务操作，单选</legend>
-        <div class="mode-picker todoist-command-picker" role="radiogroup" aria-label="任务操作">
-          <label v-for="option in todoistTaskCommands" :key="option" :class="{ selected: command === option }">
-            <input v-model="command" type="radio" name="todoist-command" :value="option">{{ option }}
-          </label>
-        </div>
-      </fieldset>
-      <div class="form-field">
-        <label id="todoist-input-label" for="todoist-input">任务内容</label>
-        <textarea id="todoist-input" v-model="input" class="todoist-input" rows="3"
-          :disabled="state.pending || state.uncertain" aria-describedby="todoist-hint"
-          autocomplete="off" spellcheck="false" placeholder="输入任务名称、编号或需要修改的内容…"></textarea>
-        <p id="todoist-hint" class="visually-hidden">填写任务名称、编号或需要修改的内容。</p>
+
+    <!-- 查询区：P0–P3 分段控件（带计数角标）与刷新 -->
+    <div class="query-bar" role="tablist" aria-label="查询范围">
+      <div class="query-tabs">
+        <button v-for="priority in todoistPriorities" :key="priority" type="button" role="tab"
+          :class="{ active: activePriority === priority }" :aria-selected="activePriority === priority"
+          @click="switchPriority(priority)">
+          {{ priority }}<span class="count">{{ counts[priority] }}</span>
+        </button>
       </div>
-      <div class="form-actions">
-        <button class="button button-primary" type="submit" :disabled="state.pending">{{ state.pending ? '处理中…' : state.uncertain ? '查询原请求结果' : '提交' }}</button>
-        <button v-if="state.uncertain" class="button button-secondary" type="button" :disabled="state.pending" @click="acknowledge">已核对原会话，开始新请求</button>
-        <span v-if="state.pending" class="request-status" role="status">正在等待处理结果，请勿重复提交。</span>
+      <button class="refresh-btn" type="button" :class="{ spinning: loading }" :disabled="loading"
+        title="重新读取任务列表" @click="loadTasks">
+        <svg width="14" height="14" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+          <path d="M13.5 8a5.5 5.5 0 1 1-1.61-3.89M13.5 2.5v2.8h-2.8" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" />
+        </svg>
+        刷新
+      </button>
+    </div>
+
+    <!-- 提示条：提交回执、错误与状态 -->
+    <div v-if="notice" class="notice show" :class="notice.kind" :role="notice.kind === 'error' ? 'alert' : 'status'">
+      <span class="notice-text">{{ notice.text }}</span>
+    </div>
+
+    <!-- 任务列表 -->
+    <section class="list-panel" aria-label="待办列表" :aria-busy="loading">
+      <div class="list-head">
+        <input type="checkbox" aria-label="全选当前列表" :checked="allChecked" :indeterminate="partlyChecked"
+          :disabled="!visibleTasks.length" @change="toggleAll($event.target.checked)">
+        <span class="head-title">{{ viewTitle }}</span>
+        <span class="head-spacer"></span>
+        <button v-if="selectedCount" class="clear-selection" type="button" @click="clearSelection">清除勾选</button>
       </div>
-      <div class="todoist-list-actions">
-        <button class="button button-secondary" type="button" :disabled="state.pending || state.uncertain" @click="run('输出全部待办')">输出全部待办</button>
-      </div>
-    </form>
-    <section class="result-panel" aria-labelledby="todoist-output-label" :aria-busy="state.pending">
-      <div class="result-heading"><h2 id="todoist-output-label">输出</h2></div>
-      <p v-if="state.error" class="error-message" role="alert">{{ state.error }}</p>
-      <pre class="result-text todoist-output" aria-live="polite">{{ state.result ?? (state.pending ? '等待回复…' : '处理结果会显示在这里。') }}</pre>
+      <ul class="task-list">
+        <!-- 待同步条目：无编号、不可勾选，刷新对账后换成真实编号 -->
+        <li v-for="item in pendingAdds" :key="item.key" class="task syncing">
+          <span class="task-id" aria-hidden="true">…</span>
+          <span class="task-content">{{ item.content }}</span>
+          <span class="badge syncing-badge">待同步</span>
+        </li>
+        <li v-if="!visibleTasks.length && !pendingAdds.length" class="empty-state">
+          「{{ viewTitle }}」暂无待办 🎉<br>换个优先级看看，或在下方添加新任务。
+        </li>
+        <li v-for="task in visibleTasks" :key="task.id" class="task" :class="{ checked: selected.has(task.id) }">
+          <input type="checkbox" :checked="selected.has(task.id)" :aria-label="`勾选任务 ${task.id}`"
+            @change="toggleTask(task.id, $event.target.checked)">
+          <span class="task-id">{{ task.id }}</span>
+          <span class="task-content">{{ task.content }}</span>
+          <span class="badge" :class="task.priority.toLowerCase()">{{ task.priority }}</span>
+          <span class="task-due" :class="{ overdue: task.overdue }">
+            {{ task.overdue ? '已逾期 · ' : '' }}{{ task.due }}
+          </span>
+        </li>
+      </ul>
     </section>
+
+    <!-- 底部操作区：添加、内联修改、勾选驱动的批量操作 -->
+    <div class="action-bar">
+      <div class="add-row">
+        <input v-model="addInput" type="text" placeholder="输入新任务内容，回车或点按钮添加…" autocomplete="off"
+          @keydown.enter="!$event.isComposing && addTask()">
+        <button class="btn btn-primary" type="button" :disabled="!addInput.trim()"
+          @click="addTask">添加任务</button>
+      </div>
+      <div v-if="showEdit" class="edit-row">
+        <input ref="editInputEl" v-model="editInput" type="text" placeholder="输入修改后的任务内容…" autocomplete="off"
+          @keydown.enter="!$event.isComposing && confirmEdit()" @keydown.esc="cancelEdit">
+        <button class="btn btn-primary" type="button" :disabled="!editInput.trim()"
+          @click="confirmEdit">确认修改</button>
+        <button class="btn" type="button" @click="cancelEdit">取消</button>
+      </div>
+      <div class="batch-row">
+        <span class="selection-info">{{ selectionInfo }}</span>
+        <button class="btn btn-primary" type="button" :disabled="!selectedCount"
+          @click="completeSelected">完成选中</button>
+        <button class="btn" type="button" :disabled="selectedCount !== 1"
+          @click="startEdit">修改选中</button>
+        <button class="btn btn-danger" type="button" :disabled="!selectedCount"
+          @click="deleteSelected">删除选中</button>
+      </div>
+
+      <!-- 提交记录：每条命令一行，状态徽标 + 命令原文 + 时间；结果未知可按 requestId 查询 -->
+      <div v-if="entries.length" class="cmd-log">
+        <div class="cmd-log-head">提交记录（{{ entries.length }}）</div>
+        <ul class="cmd-log-list">
+          <li v-for="entry in entries" :key="entry.requestId" :title="entry.detail || entry.command">
+            <span class="log-badge" :class="statusMeta[entry.status].className">{{ statusMeta[entry.status].label }}</span>
+            <span class="log-cmd">{{ entry.command }}</span>
+            <button v-if="entry.status === '结果未知'" class="log-query" type="button"
+              @click="query(entry)">查询结果</button>
+            <span class="log-time">{{ formatTime(entry.time) }}</span>
+          </li>
+        </ul>
+      </div>
+    </div>
   </section>
 </template>
 
 <style>
-/* 紧凑模式只对当前 todoist 路由生效，长内容在输入／输出框内滚动。 */
+/* 紧凑单屏布局只对当前 todoist 路由生效，结构与样式沿用确认过的高保真 demo。 */
 .app-shell.todoist-shell { height: 100dvh; min-height: 0; }
 .todoist-shell .workspace, .todoist-shell main { min-height: 0; }
 .todoist-shell .sidebar { min-height: 0; overflow: auto; }
 .todoist-shell .topbar, .todoist-shell .footer { display: none; }
-.todoist-page { height: 100%; display: flex; flex-direction: column; padding: 16px 24px; overflow: auto; }
-.todoist-page .tool-form { flex: none; padding: 12px; border-radius: 6px; }
-.todoist-page .form-field > label { margin-bottom: 6px; }
-.todoist-page .form-actions { margin-top: 8px; gap: 8px; }
-.todoist-page .result-panel { display: flex; flex-direction: column; flex: 1; min-height: 96px; margin-top: 10px; padding: 12px; border-radius: 6px; }
-.todoist-command-picker { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); width: 100%; margin-bottom: 8px; }
-.todoist-command-picker label { justify-content: center; min-height: 36px; padding: 6px 8px; }
-.todoist-list-actions { margin-top: 8px; }
-.todoist-page .todoist-input { height: 96px; min-height: 0; overflow: auto; resize: none; padding: 10px; line-height: 1.6; font-size: 16px; }
-.todoist-page .todoist-output { flex: 1; min-height: 0; max-height: none; overflow: auto; margin: 8px 0 0; font-family: inherit; }
+
+.todoist-page {
+  --accent-soft: #edf2e8;
+  --danger: #9b3d2d;
+  --danger-soft: #fff3ef;
+  --amber: #946c37;
+  --amber-soft: #f6f0e4;
+  height: 100%; width: 100%; max-width: 860px; margin: 0 auto;
+  display: flex; flex-direction: column; gap: 10px; padding: 14px 20px 12px; overflow: auto;
+}
+.todoist-page button:disabled { cursor: not-allowed; opacity: .45; }
+
+/* ── 查询区 ── */
+.todoist-page .query-bar { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; flex: none; }
+.todoist-page .query-tabs { display: flex; gap: 4px; padding: 4px; border-radius: 9px; background: #eef1e9; flex: 1; min-width: 0; }
+.todoist-page .query-tabs button {
+  flex: 1; min-width: 0; padding: 9px 10px; border: 0; border-radius: 6px;
+  background: transparent; color: #697466; font-size: 13px; white-space: nowrap;
+}
+.todoist-page .query-tabs button.active { background: #fff; color: #2f543a; font-weight: 600; box-shadow: 0 1px 3px #20301912; }
+.todoist-page .query-tabs .count { margin-left: 6px; font-size: 11px; opacity: .65; font-variant-numeric: tabular-nums; }
+.todoist-page .refresh-btn {
+  display: inline-flex; align-items: center; gap: 6px; min-height: 38px; padding: 8px 14px;
+  border: 1px solid var(--border); border-radius: 7px; background: #fff; color: #425345; font-size: 13px;
+}
+.todoist-page .refresh-btn:hover:not(:disabled) { background: #eef2e9; }
+.todoist-page .refresh-btn.spinning svg { animation: todoist-spin .8s linear infinite; }
+@keyframes todoist-spin { to { transform: rotate(360deg); } }
+
+/* ── 提示条 ── */
+.todoist-page .notice {
+  flex: none; padding: 10px 13px; border-radius: 7px; font-size: 13px; line-height: 1.7;
+  max-height: 120px; overflow: auto; overflow-wrap: anywhere;
+}
+.todoist-page .notice.ok { border: 1px solid #cddfcb; background: var(--accent-soft); color: #2f543a; }
+.todoist-page .notice.error { border: 1px solid #efc8bf; background: var(--danger-soft); color: var(--danger); }
+.todoist-page .notice.pending { border: 1px solid var(--border); background: #eff3eb; color: var(--muted); }
+.todoist-page .notice-text { white-space: pre-wrap; }
+
+/* ── 列表区 ── */
+.todoist-page .list-panel {
+  flex: 1; min-height: 0; display: flex; flex-direction: column;
+  border: 1px solid var(--border); border-radius: 12px; background: #fff; overflow: hidden;
+}
+.todoist-page .list-head {
+  display: flex; align-items: center; gap: 10px; padding: 10px 14px;
+  border-bottom: 1px solid var(--border); background: #fafbf8; font-size: 12px; color: var(--muted);
+}
+.todoist-page .list-head input { accent-color: var(--accent); width: 15px; height: 15px; margin: 0; }
+.todoist-page .list-head .head-title { font-weight: 600; color: #425345; }
+.todoist-page .list-head .head-spacer { flex: 1; }
+.todoist-page .clear-selection { border: 0; background: none; color: var(--accent); font-size: 12px; padding: 4px 6px; border-radius: 5px; }
+.todoist-page .clear-selection:hover { background: var(--accent-soft); }
+
+.todoist-page .task-list { flex: 1; min-height: 0; overflow: auto; margin: 0; padding: 0; list-style: none; }
+.todoist-page .task {
+  display: flex; align-items: center; gap: 12px; padding: 12px 14px;
+  border-bottom: 1px solid #eef1ea; font-size: 14px;
+}
+.todoist-page .task:last-child { border-bottom: 0; }
+.todoist-page .task:hover { background: #f8faf5; }
+.todoist-page .task.checked { background: #f2f6ee; }
+.todoist-page .task input[type="checkbox"] { accent-color: var(--accent); width: 17px; height: 17px; margin: 0; flex: none; }
+.todoist-page .task-id { flex: none; width: 26px; color: #9da698; font-size: 11px; font-variant-numeric: tabular-nums; text-align: right; }
+.todoist-page .task-content { flex: 1; min-width: 0; line-height: 1.5; overflow-wrap: anywhere; }
+.todoist-page .task.checked .task-content { color: #6b736c; }
+.todoist-page .task-due { flex: none; color: var(--muted); font-size: 12px; font-variant-numeric: tabular-nums; }
+.todoist-page .task-due.overdue { color: var(--danger); font-weight: 600; }
+.todoist-page .badge {
+  flex: none; min-width: 34px; padding: 2px 8px; border-radius: 999px;
+  font-size: 11px; font-weight: 600; text-align: center; letter-spacing: .04em;
+}
+.todoist-page .badge.p0 { color: var(--danger); background: var(--danger-soft); border: 1px solid #efc8bf; }
+.todoist-page .badge.p1 { color: var(--amber); background: var(--amber-soft); border: 1px solid #e8d9bd; }
+.todoist-page .badge.p2 { color: #5a655c; background: #eef1e9; border: 1px solid var(--border); }
+.todoist-page .badge.p3 { color: #6b6f77; background: #eef0f2; border: 1px solid #dfe2e6; }
+/* 待同步条目：无编号、不可勾选，样式弱化以区别于已对账任务。 */
+.todoist-page .task.syncing { color: #9da698; background: #fafbf8; }
+.todoist-page .syncing-badge { color: var(--amber); background: var(--amber-soft); border: 1px solid #e8d9bd; min-width: 46px; }
+
+.todoist-page .empty-state { padding: 48px 20px; text-align: center; color: var(--muted); font-size: 13px; line-height: 2; }
+
+/* ── 底部操作区 ── */
+.todoist-page .action-bar { display: flex; flex-direction: column; gap: 8px; flex: none; }
+.todoist-page .add-row { display: flex; gap: 8px; }
+.todoist-page .add-row input {
+  flex: 1; min-width: 0; padding: 11px 13px; border: 1px solid #cdd6cb; border-radius: 7px;
+  background: #fff; color: #202a22; font-size: 16px; line-height: 1.5;
+}
+.todoist-page .add-row input:focus { border-color: #6d9b7b; outline: none; }
+.todoist-page .batch-row { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.todoist-page .selection-info { font-size: 12px; color: var(--muted); margin-right: auto; font-variant-numeric: tabular-nums; }
+.todoist-page .btn {
+  display: inline-flex; align-items: center; justify-content: center; gap: 6px;
+  min-height: 40px; padding: 9px 16px; border: 1px solid var(--border); border-radius: 7px;
+  background: #fff; color: #425345; font-size: 13px; font-weight: 500;
+}
+.todoist-page .btn:hover:not(:disabled) { background: #eef2e9; }
+.todoist-page .btn-primary { background: var(--accent); border-color: var(--accent); color: #fff; }
+.todoist-page .btn-primary:hover:not(:disabled) { background: #244c33; }
+.todoist-page .btn-danger { color: var(--danger); border-color: #efc8bf; }
+.todoist-page .btn-danger:hover:not(:disabled) { background: var(--danger-soft); }
+
+/* ── 内联修改编辑 ── */
+.todoist-page .edit-row { display: flex; gap: 8px; padding: 8px; border: 1px dashed #cdd6cb; border-radius: 7px; background: #fafbf8; }
+.todoist-page .edit-row input { flex: 1; min-width: 0; padding: 9px 11px; border: 1px solid #cdd6cb; border-radius: 6px; font-size: 14px; background: #fff; }
+.todoist-page .edit-row input:focus { border-color: #6d9b7b; outline: none; }
+
+/* ── 提交记录：每条命令的归宿 ── */
+.todoist-page .cmd-log { border: 1px solid var(--border); border-radius: 7px; background: #fafbf8; }
+.todoist-page .cmd-log-head { padding: 7px 12px; font-size: 12px; font-weight: 600; color: var(--muted); border-bottom: 1px solid #eef1ea; }
+.todoist-page .cmd-log-list { margin: 0; padding: 4px 0; list-style: none; max-height: 132px; overflow: auto; }
+.todoist-page .cmd-log-list li { display: flex; align-items: center; gap: 8px; padding: 5px 12px; font-size: 12px; }
+.todoist-page .log-badge { flex: none; min-width: 44px; padding: 1px 7px; border-radius: 999px; text-align: center; font-size: 11px; font-weight: 600; }
+.todoist-page .log-badge.queued { color: #5a655c; background: #eef1e9; }
+.todoist-page .log-badge.running { color: var(--amber); background: var(--amber-soft); }
+.todoist-page .log-badge.succeeded { color: var(--accent); background: var(--accent-soft); }
+.todoist-page .log-badge.failed, .todoist-page .log-badge.unknown { color: var(--danger); background: var(--danger-soft); }
+.todoist-page .log-cmd { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: #425345; }
+.todoist-page .log-query {
+  flex: none; padding: 2px 9px; border: 1px solid #efc8bf; border-radius: 5px;
+  background: #fff; color: var(--danger); font-size: 11px;
+}
+.todoist-page .log-query:hover { background: var(--danger-soft); }
+.todoist-page .log-time { flex: none; color: #9da698; font-variant-numeric: tabular-nums; }
+
 @media (max-width: 700px) {
   .app-shell.todoist-shell { display: flex; flex-direction: column; }
   .todoist-shell .sidebar { flex: none; padding: 8px 12px; }
@@ -74,8 +480,13 @@ onBeforeUnmount(dispose)
   .todoist-shell .sidebar nav { margin-top: 0; gap: 4px; }
   .todoist-shell .nav-link { padding: 9px 8px; font-size: 12px; }
   .todoist-shell .workspace { flex: 1; }
-  .todoist-page { padding: 10px 12px; }
-  .todoist-command-picker { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-  .todoist-page .todoist-input { height: 72px; }
+  .todoist-page { padding: 10px 12px 8px; }
+  .todoist-page .query-tabs button { font-size: 12px; padding: 9px 6px; }
+  .todoist-page .badge.p0, .todoist-page .badge.p1, .todoist-page .badge.p2, .todoist-page .badge.p3 { display: none; } /* 窄屏隐藏优先级徽标，保内容 + 期限 */
+  .todoist-page .selection-info { width: 100%; }
+  .todoist-page .add-row { flex-wrap: wrap; }
+  .todoist-page .add-row .btn { flex: none; }
+  .todoist-page .task { gap: 8px; padding: 12px 10px; }
+  .todoist-page .task-due { font-size: 11px; }
 }
 </style>
