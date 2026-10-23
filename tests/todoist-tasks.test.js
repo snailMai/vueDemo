@@ -7,6 +7,7 @@ import { fetchTodoistTasks, TodoistRequestError } from '../src/api/todoist.js'
 function jsonResponse(body, init) {
   return Response.json(body, init)
 }
+const reference = { key: 'a'.repeat(64), version: 'b'.repeat(64), note: '无' }
 
 test('只读接口使用同源 GET，无请求正文，返回结构化任务', async t => {
   t.mock.method(globalThis, 'fetch', async (url, options) => {
@@ -17,13 +18,13 @@ test('只读接口使用同源 GET，无请求正文，返回结构化任务', a
     assert.equal(options.credentials, 'same-origin')
     assert.equal(options.redirect, 'error')
     return jsonResponse({ tasks: [
-      { id: 7, content: '合成任务甲', priority: 'P2', due: '无期限', overdue: false },
-      { id: 18, content: '合成任务乙', priority: 'P3', due: '2026-10-01', overdue: true }
+      { ...reference, id: 7, content: '合成任务甲', priority: 'P2', due: '无期限', overdue: false },
+      { ...reference, key: 'c'.repeat(64), id: 18, content: '合成任务乙', priority: 'P3', due: '2026-10-01', overdue: true }
     ] })
   })
   const tasks = await fetchTodoistTasks()
   assert.equal(tasks.length, 2)
-  assert.deepEqual(tasks[0], { id: 7, content: '合成任务甲', priority: 'P2', due: '无期限', overdue: false })
+  assert.deepEqual(tasks[0], { ...reference, id: 7, content: '合成任务甲', priority: 'P2', due: '无期限', overdue: false })
   assert.equal(tasks[1].overdue, true)
 })
 

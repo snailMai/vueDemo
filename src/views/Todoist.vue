@@ -1,9 +1,9 @@
 <script setup>
-// 任务列表页：列表数据来自后端只读任务文件接口；增删改经后端命令队列转发给原会话。
+// 任务列表和增删改均由本地后端处理；前端不生成目标、完成标准等业务字段。
 // 提交即返回、可连续提交：本地立即乐观更新，失败回滚，结果未知不回滚也不重发。
 import { computed, nextTick, onBeforeUnmount, onMounted, ref } from 'vue'
 import { useTodoistQueue } from '../composables/useTodoistQueue.js'
-import { composeTodoistTask, fetchTodoistTasks, TodoistRequestError } from '../api/todoist.js'
+import { fetchTodoistTasks, TodoistRequestError } from '../api/todoist.js'
 
 const NOTICE_TIMEOUT = 8000
 const todoistPriorities = Object.freeze(['P0', 'P1', 'P2', 'P3'])
@@ -13,7 +13,10 @@ const statusMeta = {
   执行中: { label: '执行中', className: 'running' },
   成功: { label: '成功', className: 'succeeded' },
   失败: { label: '失败', className: 'failed' },
-  结果未知: { label: '结果未知', className: 'unknown' }
+  结果未知: { label: '结果未知', className: 'unknown' },
+  待确认: { label: '待确认', className: 'unknown' },
+  已确认: { label: '已确认', className: 'queued' },
+  已取消: { label: '已取消', className: 'queued' }
 }
 
 const tasks = ref([])
@@ -22,13 +25,19 @@ const activePriority = ref('P2')
 const selected = ref(new Set())
 const addInput = ref('')
 const editInput = ref('')
+const editPriority = ref('P2')
+const editNote = ref('')
+const deletion = ref(null)
 const editingId = ref(null)
 const editInputEl = ref(null)
 const loadedOnce = ref(false)
 const loading = ref(false)
 let loadController = null
+let loadPromise = null
+let reloadRequested = false
+let unmounted = false
 
-const { entries, submit, query, dispose } = useTodoistQueue()
+const { entries, submit, query, confirm, cancel, dispose } = useTodoistQueue()
 
 // 回复文本只进短暂提示条，不解析进列表。
 const notice = ref(null)
@@ -46,17 +55,26 @@ const counts = computed(() => {
 })
 const visibleTasks = computed(() => tasks.value.filter(task => task.priority === activePriority.value))
 const viewTitle = computed(() => `${activePriority.value} 待办`)
-const selectedIds = computed(() => [...selected.value].sort((a, b) => a - b))
+const selectedIds = computed(() => tasks.value.filter(task => selected.value.has(task.key)).map(task => task.id).sort((a, b) => a - b))
 const selectedCount = computed(() => selected.value.size)
 const selectionInfo = computed(() =>
   selectedCount.value ? `已选 ${selectedCount.value} 项（编号：${selectedIds.value.join('、')}）` : '未勾选任务')
-const allChecked = computed(() => visibleTasks.value.length > 0 && visibleTasks.value.every(task => selected.value.has(task.id)))
-const partlyChecked = computed(() => !allChecked.value && visibleTasks.value.some(task => selected.value.has(task.id)))
+const allChecked = computed(() => visibleTasks.value.length > 0 && visibleTasks.value.every(task => selected.value.has(task.key)))
+const partlyChecked = computed(() => !allChecked.value && visibleTasks.value.some(task => selected.value.has(task.key)))
 const showEdit = computed(() => editingId.value !== null && selectedCount.value === 1)
 
 // 页面打开与点刷新都调只读接口；切换优先级只是本地过滤，不调接口。
-async function loadTasks() {
-  if (loading.value) return
+function loadTasks() {
+  if (unmounted) return Promise.resolve()
+  if (loadPromise) { reloadRequested = true; return loadPromise }
+  loadPromise = (async () => {
+    let success
+    do { reloadRequested = false; success = await readTasks() } while (reloadRequested && !unmounted)
+    return success
+  })().finally(() => { loadPromise = null })
+  return loadPromise
+}
+async function readTasks() {
   loadController?.abort()
   const controller = new AbortController()
   loadController = controller
@@ -64,28 +82,21 @@ async function loadTasks() {
   try {
     const list = await fetchTodoistTasks(controller.signal)
     tasks.value = list
-    const alive = new Set(list.map(task => task.id))
+    const alive = new Set(list.map(task => task.key))
     selected.value = new Set([...selected.value].filter(id => alive.has(id)))
     if (!loadedOnce.value) {
       loadedOnce.value = true
       const first = todoistPriorities.find(priority => list.some(task => task.priority === priority))
       if (first) activePriority.value = first
     }
+    return true
   } catch (error) {
     if (error?.name !== 'AbortError') {
       showNotice('error', error instanceof TodoistRequestError ? error.message : '任务列表暂时不可用，请稍后刷新重试。')
     }
+    return false
   } finally {
     loading.value = false
-  }
-}
-
-function composeOrNotice(command, value) {
-  try {
-    return composeTodoistTask(command, value)
-  } catch (error) {
-    showNotice('error', error instanceof TodoistRequestError ? error.message : '输入无效，请检查内容后再提交。')
-    return null
   }
 }
 
@@ -102,44 +113,45 @@ function submitCommand(command, hooks) {
 
 // 命令成功落定后重新读文件对账；添加的「待同步」条目在对账后移除，由真实编号条目替代。
 async function settleEntry(entry) {
-  await loadTasks()
+  const refreshed = await loadTasks()
   pendingAdds.value = pendingAdds.value.filter(item => item.key !== entry.requestId)
-  showNotice('ok', `✓ ${entry.command} 执行成功，列表已更新。`)
+  showNotice(refreshed ? 'ok' : 'error', refreshed ? `✓ ${entry.command} 执行成功，列表已更新。` : '任务已处理，但列表刷新失败，请手动刷新。')
 }
 
 function addTask() {
-  const command = composeOrNotice('添加任务', addInput.value)
-  if (!command) return
+  if (!addInput.value.trim()) return
   const content = addInput.value.trim()
   addInput.value = ''
-  submitCommand(command, {
+  submitCommand({ operation: 'add', fields: { name: content } }, {
     // 待同步条目无编号、不可勾选，对账后换成真实编号。
     onSubmitted: entry => { pendingAdds.value = [...pendingAdds.value, { key: entry.requestId, content }] },
     onSuccess: settleEntry,
     onFailure: entry => {
       pendingAdds.value = pendingAdds.value.filter(item => item.key !== entry.requestId)
+      if (!addInput.value) addInput.value = content
       showNotice('error', `添加失败：${entry.detail}`)
+    },
+    onConfirmation: entry => {
+      pendingAdds.value = pendingAdds.value.filter(item => item.key !== entry.requestId)
+      showNotice('error', entry.detail, true)
     }
   })
 }
 
 function completeSelected() {
   if (!selectedCount.value) return
-  const ids = selectedIds.value
-  const command = composeOrNotice('完成任务', ids.join('、'))
-  if (!command) return
-  const idSet = new Set(ids)
-  const removed = tasks.value.filter(task => idSet.has(task.id))
-  submitCommand(command, {
+  const keys = new Set(selected.value)
+  const removed = tasks.value.filter(task => keys.has(task.key))
+  submitCommand({ operation: 'complete', targets: removed.map(task => ({ key: task.key, version: task.version })) }, {
     onSubmitted: () => {
-      tasks.value = tasks.value.filter(task => !idSet.has(task.id))
+      tasks.value = tasks.value.filter(task => !keys.has(task.key))
       selected.value = new Set()
       editingId.value = null
     },
     onSuccess: settleEntry,
     onFailure: entry => {
       // 失败回滚：把本地移除的任务按编号放回原位。
-      tasks.value = [...tasks.value, ...removed].sort((a, b) => a.id - b.id)
+      tasks.value = [...tasks.value, ...removed.filter(task => !tasks.value.some(current => current.key === task.key))].sort((a, b) => a.id - b.id)
       showNotice('error', `完成失败：${entry.detail}`)
     }
   })
@@ -147,20 +159,22 @@ function completeSelected() {
 
 function deleteSelected() {
   if (!selectedCount.value) return
-  const ids = selectedIds.value
-  const command = composeOrNotice('删除任务', ids.join('、'))
-  if (!command) return
-  const idSet = new Set(ids)
-  const removed = tasks.value.filter(task => idSet.has(task.id))
-  submitCommand(command, {
+  deletion.value = tasks.value.filter(task => selected.value.has(task.key))
+}
+function confirmDeletion() {
+  const removed = deletion.value
+  if (!removed?.length) return
+  deletion.value = null
+  const keys = new Set(removed.map(task => task.key))
+  submitCommand({ operation: 'remove', targets: removed.map(task => ({ key: task.key, version: task.version })) }, {
     onSubmitted: () => {
-      tasks.value = tasks.value.filter(task => !idSet.has(task.id))
+      tasks.value = tasks.value.filter(task => !keys.has(task.key))
       selected.value = new Set()
       editingId.value = null
     },
     onSuccess: settleEntry,
     onFailure: entry => {
-      tasks.value = [...tasks.value, ...removed].sort((a, b) => a.id - b.id)
+      tasks.value = [...tasks.value, ...removed.filter(task => !tasks.value.some(current => current.key === task.key))].sort((a, b) => a.id - b.id)
       showNotice('error', `删除失败：${entry.detail}`)
     }
   })
@@ -168,32 +182,44 @@ function deleteSelected() {
 
 function startEdit() {
   if (selectedCount.value !== 1) return
-  const id = selectedIds.value[0]
-  const task = tasks.value.find(item => item.id === id)
-  editingId.value = id
+  const key = [...selected.value][0]
+  const task = tasks.value.find(item => item.key === key)
+  editingId.value = key
   editInput.value = task?.content ?? ''
+  editPriority.value = task?.priority ?? 'P2'
+  editNote.value = task?.note === '无' ? '' : task?.note ?? ''
   nextTick(() => editInputEl.value?.focus())
 }
 
 function confirmEdit() {
   if (editingId.value === null || !editInput.value.trim()) return
-  const id = editingId.value
+  const key = editingId.value
+  const target = tasks.value.find(task => task.key === key)
+  if (!target) return
   const content = editInput.value
-  const command = composeOrNotice('修改任务', `${id}：${content}`)
-  if (!command) return
-  const previous = tasks.value.find(item => item.id === id)?.content
-  submitCommand(command, {
+  const fields = {}
+  if (content !== target.content) fields.name = content
+  if (editPriority.value !== target.priority) fields.priority = editPriority.value
+  if ((editNote.value || '无') !== target.note) fields.note = editNote.value
+  if (!Object.keys(fields).length) { cancelEdit(); return }
+  const previous = { content: target.content, priority: target.priority, note: target.note }
+  submitCommand({ operation: 'edit', targets: [{ key, version: target.version }], fields }, {
     onSubmitted: () => {
-      const task = tasks.value.find(item => item.id === id)
-      if (task) task.content = content
+      const task = tasks.value.find(item => item.key === key)
+      if (task) { task.content = content; task.priority = fields.priority ?? task.priority; task.note = fields.note === undefined ? task.note : fields.note || '无' }
       editingId.value = null
       selected.value = new Set()
     },
     onSuccess: settleEntry,
     onFailure: entry => {
-      const task = tasks.value.find(item => item.id === id)
-      if (task && previous !== undefined) task.content = previous
+      const task = tasks.value.find(item => item.key === key)
+      if (task && task.version === target.version) Object.assign(task, previous)
       showNotice('error', `修改失败：${entry.detail}`)
+    },
+    onConfirmation: entry => {
+      const task = tasks.value.find(item => item.key === key)
+      if (task && task.version === target.version) Object.assign(task, previous)
+      showNotice('error', entry.detail, true)
     }
   })
 }
@@ -218,8 +244,8 @@ function toggleTask(id, checked) {
 function toggleAll(checked) {
   const next = new Set(selected.value)
   for (const task of visibleTasks.value) {
-    if (checked) next.add(task.id)
-    else next.delete(task.id)
+    if (checked) next.add(task.key)
+    else next.delete(task.key)
   }
   selected.value = next
 }
@@ -234,6 +260,7 @@ function formatTime(date) {
 
 onMounted(loadTasks)
 onBeforeUnmount(() => {
+  unmounted = true
   clearTimeout(noticeTimer)
   loadController?.abort()
   dispose()
@@ -286,11 +313,11 @@ onBeforeUnmount(() => {
         <li v-if="!visibleTasks.length && !pendingAdds.length" class="empty-state">
           「{{ viewTitle }}」暂无待办 🎉<br>换个优先级看看，或在下方添加新任务。
         </li>
-        <li v-for="task in visibleTasks" :key="task.id" class="task" :class="{ checked: selected.has(task.id) }">
-          <input type="checkbox" :checked="selected.has(task.id)" :aria-label="`勾选任务 ${task.id}`"
-            @change="toggleTask(task.id, $event.target.checked)">
+        <li v-for="task in visibleTasks" :key="task.key" class="task" :class="{ checked: selected.has(task.key) }">
+          <input type="checkbox" :checked="selected.has(task.key)" :aria-label="`勾选任务 ${task.id}`"
+            @change="toggleTask(task.key, $event.target.checked)">
           <span class="task-id">{{ task.id }}</span>
-          <span class="task-content">{{ task.content }}</span>
+          <span class="task-content">{{ task.content }}{{ task.note && task.note !== '无' ? ` -- ${task.note}` : '' }}</span>
           <span class="badge" :class="task.priority.toLowerCase()">{{ task.priority }}</span>
           <span class="task-due" :class="{ overdue: task.overdue }">
             {{ task.overdue ? '已逾期 · ' : '' }}{{ task.due }}
@@ -301,6 +328,11 @@ onBeforeUnmount(() => {
 
     <!-- 底部操作区：添加、内联修改、勾选驱动的批量操作 -->
     <div class="action-bar">
+      <div v-if="deletion" class="notice show error" role="alert">
+        <span>将删除 {{ deletion.length }} 项并归档为「已移除」。</span>
+        <button class="btn btn-danger" type="button" @click="confirmDeletion">确认删除</button>
+        <button class="btn" type="button" @click="deletion = null">取消</button>
+      </div>
       <div class="add-row">
         <input v-model="addInput" type="text" placeholder="输入新任务内容，回车或点按钮添加…" autocomplete="off"
           @keydown.enter="!$event.isComposing && addTask()">
@@ -313,6 +345,12 @@ onBeforeUnmount(() => {
         <button class="btn btn-primary" type="button" :disabled="!editInput.trim()"
           @click="confirmEdit">确认修改</button>
         <button class="btn" type="button" @click="cancelEdit">取消</button>
+      </div>
+      <div v-if="showEdit" class="edit-row">
+        <label v-for="priority in todoistPriorities" :key="priority">
+          <input v-model="editPriority" type="radio" name="edit-priority" :value="priority">{{ priority }}
+        </label>
+        <input v-model="editNote" type="text" aria-label="修改备注" placeholder="备注，不填为无">
       </div>
       <div class="batch-row">
         <span class="selection-info">{{ selectionInfo }}</span>
@@ -331,9 +369,14 @@ onBeforeUnmount(() => {
           <li v-for="entry in entries" :key="entry.requestId" :title="entry.detail || entry.command">
             <span class="log-badge" :class="statusMeta[entry.status].className">{{ statusMeta[entry.status].label }}</span>
             <span class="log-cmd">{{ entry.command }}</span>
+            <button v-if="entry.status === '待确认'" class="log-query" type="button" @click="confirm(entry)">不是重复，继续</button>
+            <button v-if="entry.status === '待确认'" class="log-query" type="button" @click="cancel(entry)">取消</button>
             <button v-if="entry.status === '结果未知'" class="log-query" type="button"
               @click="query(entry)">查询结果</button>
             <span class="log-time">{{ formatTime(entry.time) }}</span>
+            <div v-if="entry.duplicates.length" class="duplicate-candidates">
+              <span v-for="(candidate, index) in entry.duplicates" :key="index">{{ candidate.source === 'archive' ? '归档' : '待办' }} · {{ candidate.priority }} · {{ candidate.name }}</span>
+            </div>
           </li>
         </ul>
       </div>
@@ -451,15 +494,17 @@ onBeforeUnmount(() => {
 .todoist-page .btn-danger:hover:not(:disabled) { background: var(--danger-soft); }
 
 /* ── 内联修改编辑 ── */
-.todoist-page .edit-row { display: flex; gap: 8px; padding: 8px; border: 1px dashed #cdd6cb; border-radius: 7px; background: #fafbf8; }
-.todoist-page .edit-row input { flex: 1; min-width: 0; padding: 9px 11px; border: 1px solid #cdd6cb; border-radius: 6px; font-size: 14px; background: #fff; }
-.todoist-page .edit-row input:focus { border-color: #6d9b7b; outline: none; }
+.todoist-page .edit-row { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; padding: 8px; border: 1px dashed #cdd6cb; border-radius: 7px; background: #fafbf8; }
+.todoist-page .edit-row label { display: inline-flex; align-items: center; gap: 3px; }
+.todoist-page .edit-row input[type="text"] { flex: 1; min-width: 120px; padding: 9px 11px; border: 1px solid #cdd6cb; border-radius: 6px; font-size: 14px; background: #fff; }
+.todoist-page .edit-row input[type="text"]:focus { border-color: #6d9b7b; outline: none; }
 
 /* ── 提交记录：每条命令的归宿 ── */
 .todoist-page .cmd-log { border: 1px solid var(--border); border-radius: 7px; background: #fafbf8; }
 .todoist-page .cmd-log-head { padding: 7px 12px; font-size: 12px; font-weight: 600; color: var(--muted); border-bottom: 1px solid #eef1ea; }
 .todoist-page .cmd-log-list { margin: 0; padding: 4px 0; list-style: none; max-height: 132px; overflow: auto; }
-.todoist-page .cmd-log-list li { display: flex; align-items: center; gap: 8px; padding: 5px 12px; font-size: 12px; }
+.todoist-page .cmd-log-list li { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; padding: 5px 12px; font-size: 12px; }
+.todoist-page .duplicate-candidates { flex-basis: 100%; display: grid; gap: 3px; overflow-wrap: anywhere; color: var(--muted); }
 .todoist-page .log-badge { flex: none; min-width: 44px; padding: 1px 7px; border-radius: 999px; text-align: center; font-size: 11px; font-weight: 600; }
 .todoist-page .log-badge.queued { color: #5a655c; background: #eef1e9; }
 .todoist-page .log-badge.running { color: var(--amber); background: var(--amber-soft); }
