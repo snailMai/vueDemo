@@ -24,6 +24,8 @@ const pendingAdds = ref([])
 const activePriority = ref('P2')
 const selected = ref(new Set())
 const addInput = ref('')
+// 新增级别独立于顶部查询分组；连续添加时保留选择。
+const addPriority = ref('P2')
 const editInput = ref('')
 const editPriority = ref('P2')
 const editNote = ref('')
@@ -122,7 +124,7 @@ function addTask() {
   if (!addInput.value.trim()) return
   const content = addInput.value.trim()
   addInput.value = ''
-  submitCommand({ operation: 'add', fields: { name: content } }, {
+  submitCommand({ operation: 'add', fields: { name: content, priority: addPriority.value } }, {
     // 待同步条目无编号、不可勾选，对账后换成真实编号。
     onSubmitted: entry => { pendingAdds.value = [...pendingAdds.value, { key: entry.requestId, content }] },
     onSuccess: settleEntry,
@@ -334,7 +336,13 @@ onBeforeUnmount(() => {
         <button class="btn" type="button" @click="deletion = null">取消</button>
       </div>
       <div class="add-row">
-        <input v-model="addInput" type="text" placeholder="输入新任务内容，回车或点按钮添加…" autocomplete="off"
+        <fieldset class="add-priority">
+          <legend>新增级别</legend>
+          <label v-for="priority in todoistPriorities" :key="priority">
+            <input v-model="addPriority" type="radio" name="add-priority" :value="priority">{{ priority }}
+          </label>
+        </fieldset>
+        <input v-model="addInput" type="text" aria-label="新任务内容" placeholder="输入新任务内容，回车或点按钮添加…" autocomplete="off"
           @keydown.enter="!$event.isComposing && addTask()">
         <button class="btn btn-primary" type="button" :disabled="!addInput.trim()"
           @click="addTask">添加任务</button>
@@ -474,12 +482,17 @@ onBeforeUnmount(() => {
 
 /* ── 底部操作区 ── */
 .todoist-page .action-bar { display: flex; flex-direction: column; gap: 8px; flex: none; }
-.todoist-page .add-row { display: flex; gap: 8px; }
-.todoist-page .add-row input {
+.todoist-page .add-row { display: flex; align-items: center; gap: 8px; }
+.todoist-page .add-priority { display: flex; gap: 2px; flex: none; min-width: 0; margin: 0; padding: 0 4px 4px; border: 1px solid var(--border); border-radius: 7px; background: #fff; }
+.todoist-page .add-priority legend { padding: 0 4px; font-size: 11px; color: var(--muted); }
+.todoist-page .add-priority label { display: inline-flex; align-items: center; gap: 4px; padding: 5px 6px; border-radius: 5px; font-size: 12px; cursor: pointer; }
+.todoist-page .add-priority label:has(input:checked) { background: var(--accent-soft); color: var(--accent); }
+.todoist-page .add-priority input { margin: 0; accent-color: var(--accent); }
+.todoist-page .add-row > input[type="text"] {
   flex: 1; min-width: 0; padding: 11px 13px; border: 1px solid #cdd6cb; border-radius: 7px;
   background: #fff; color: #202a22; font-size: 16px; line-height: 1.5;
 }
-.todoist-page .add-row input:focus { border-color: #6d9b7b; outline: none; }
+.todoist-page .add-row > input[type="text"]:focus { border-color: #6d9b7b; outline: none; }
 .todoist-page .batch-row { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
 .todoist-page .selection-info { font-size: 12px; color: var(--muted); margin-right: auto; font-variant-numeric: tabular-nums; }
 .todoist-page .btn {
@@ -530,6 +543,8 @@ onBeforeUnmount(() => {
   .todoist-page .badge.p0, .todoist-page .badge.p1, .todoist-page .badge.p2, .todoist-page .badge.p3 { display: none; } /* 窄屏隐藏优先级徽标，保内容 + 期限 */
   .todoist-page .selection-info { width: 100%; }
   .todoist-page .add-row { flex-wrap: wrap; }
+  .todoist-page .add-priority { flex-basis: 100%; }
+  .todoist-page .add-priority label { flex: 1; justify-content: center; min-height: 44px; }
   .todoist-page .add-row .btn { flex: none; }
   .todoist-page .task { gap: 8px; padding: 12px 10px; }
   .todoist-page .task-due { font-size: 11px; }

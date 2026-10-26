@@ -9,7 +9,7 @@ const duplicates = [{ name: '测试 1234', priority: 'P2', source: 'todo' }]
 const token = 'c'.repeat(64)
 const flush = () => new Promise(resolve => setTimeout(resolve, 0))
 
-test('新增只发送名称，不在前端要求或编造目标和完成标准', async t => {
+test('兼容仅含名称的新增请求，不在前端要求或编造目标和完成标准', async t => {
   assert.equal(validateTaskOperation(add), add)
   t.mock.method(globalThis, 'fetch', async (url, options) => {
     assert.equal(url, '/api/todoist/commands')
