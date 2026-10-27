@@ -4,6 +4,7 @@
 import { computed, nextTick, onBeforeUnmount, onMounted, ref } from 'vue'
 import { useTodoistQueue } from '../composables/useTodoistQueue.js'
 import { fetchTodoistTasks, TodoistRequestError } from '../api/todoist.js'
+import RecurringPanel from '../components/RecurringPanel.vue'
 
 const NOTICE_TIMEOUT = 8000
 const todoistPriorities = Object.freeze(['P0', 'P1', 'P2', 'P3'])
@@ -22,6 +23,8 @@ const statusMeta = {
 const tasks = ref([])
 const pendingAdds = ref([])
 const activePriority = ref('P2')
+// 「定时任务」按钮打开的弹窗：定时任务的查看／新增／修改／删除演示面板，不独立成页。
+const showRecurring = ref(false)
 const selected = ref(new Set())
 const addInput = ref('')
 // 新增级别独立于顶部查询分组；连续添加时保留选择。
@@ -236,6 +239,10 @@ function switchPriority(priority) {
   editingId.value = null
 }
 
+function openRecurring() {
+  showRecurring.value = true
+}
+
 function toggleTask(id, checked) {
   const next = new Set(selected.value)
   if (checked) next.add(id)
@@ -282,6 +289,13 @@ onBeforeUnmount(() => {
           {{ priority }}<span class="count">{{ counts[priority] }}</span>
         </button>
       </div>
+      <button class="refresh-btn" type="button" title="管理定时自动任务（演示数据）" @click="openRecurring">
+        <svg width="14" height="14" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+          <circle cx="8" cy="8" r="6.25" stroke="currentColor" stroke-width="1.5" />
+          <path d="M8 4.5V8l2.5 1.8" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" />
+        </svg>
+        定时任务
+      </button>
       <button class="refresh-btn" type="button" :class="{ spinning: loading }" :disabled="loading"
         title="重新读取任务列表" @click="loadTasks">
         <svg width="14" height="14" viewBox="0 0 16 16" fill="none" aria-hidden="true">
@@ -387,6 +401,13 @@ onBeforeUnmount(() => {
             </div>
           </li>
         </ul>
+      </div>
+    </div>
+
+    <!-- 定时任务弹窗：查看／新增／修改／删除（演示数据），复用页面提示条。 -->
+    <div v-if="showRecurring" class="recurring-mask" @click.self="showRecurring = false">
+      <div class="recurring-dialog" role="dialog" aria-modal="true" aria-label="定时任务管理">
+        <RecurringPanel @notice="notice => showNotice(notice.kind, notice.text)" @close="showRecurring = false" />
       </div>
     </div>
   </section>
