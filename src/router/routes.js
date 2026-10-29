@@ -3,7 +3,8 @@ export const toolPages = [
   { path: '/About', label: '首页', number: '01', component: () => import('../views/About.vue') },
   { path: '/ToolsCryption', label: '文本加解密', number: '02', component: () => import('../views/ToolsCryption.vue') },
   { path: '/GetRandomPWD', label: '随机密码', number: '03', component: () => import('../views/GetRandomPWD.vue') },
-  { path: '/Todoist', label: 'todoist', number: '04', component: () => import('../views/Todoist.vue') }
+  { path: '/Todoist', label: 'todoist', number: '04', component: () => import('../views/Todoist.vue') },
+  { path: '/Transfer', label: '电脑手机同步', number: '05', component: () => import('../views/Transfer.vue') }
 ]
 
 export const routes = [

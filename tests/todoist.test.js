@@ -5,7 +5,7 @@ import { useTodoistRequest } from '../src/composables/useTodoistRequest.js'
 import { routes, toolPages } from '../src/router/routes.js'
 
 test('todoist 是第四个入口，原有工具路径保留', () => {
-  assert.deepEqual(toolPages.map(page => page.path), ['/About', '/ToolsCryption', '/GetRandomPWD', '/Todoist'])
+  assert.deepEqual(toolPages.map(page => page.path), ['/About', '/ToolsCryption', '/GetRandomPWD', '/Todoist', '/Transfer'])
   assert.equal(toolPages[3].label, 'todoist')
   assert.ok(routes.some(route => route.path === '/Todoist'))
 })

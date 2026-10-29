@@ -1,8 +1,16 @@
 # 工具前端
 
-Vue 3／Vite 前端，提供首页、加解密、随机密码与 todoist 页面。使用 Node.js 24 LTS（至少 24.12.0）和锁定依赖，通过 `npm ci` 安装、`npm test` 测试、`npm run serve` 开发、`npm run build` 构建至 `dist-refactor/`。`npm run preview` 可在本地预览生产构建。
+当前源码版本为 `v3.1.0`，属于 V3 电脑手机同步阶段，包含 V1 原工具及 V2 todoist。`package.json` 与锁文件使用 `3.1.0`；本次仅更新产品版本元数据，网页改密由独立传输组件提供，外层 Vue 页面未重新发布。
 
-开发时 `/api/todoist/` 代理到 `127.0.0.1:8091`，其余 `/api/` 代理到 `127.0.0.1:8081`，均去掉 `/api` 前缀。生产环境需要配置相同的同源代理，并为 `/About`、`/ToolsCryption`、`/GetRandomPWD`、`/Todoist` 配置 history 回退。原用户管理页面已经退役，不参与构建。
+Vue 3／Vite 前端，提供首页、加解密、随机密码、todoist 与电脑手机同步页面。使用 Node.js 24 LTS（至少 24.12.0）和锁定依赖，通过 `npm ci` 安装、`npm test` 测试、`npm run serve` 开发、`npm run build` 构建至 `dist-refactor/`。`npm run preview` 可在本地预览生产构建。
+
+开发时 `/api/todoist/` 代理到 `127.0.0.1:8091`，其余 `/api/` 代理到 `127.0.0.1:8081`，均去掉 `/api` 前缀。`/transfer/` 原样代理到 `127.0.0.1:8765` 的独立传输服务。生产环境需要配置相同的同源代理，并为 `/About`、`/ToolsCryption`、`/GetRandomPWD`、`/Todoist`、`/Transfer` 配置 history 回退。原用户管理页面已经退役，不参与构建。
+
+## 电脑手机同步
+
+左侧导航在 todoist 后增加 `/Transfer`，嵌入同源 `/transfer/?embedded=1` 的实际传输界面。`Transfer.vue` 检查独立服务是否可用，失败可重试，离开页面取消检查并卸载界面。原有登录、文字／图片／文件上传、历史和下载由相邻 `snail-transfer/` 项目实现，Vue 不复制存储逻辑。开发时按该项目 README 以 `--prefix /transfer --origin http://127.0.0.1:8080` 启动；预览时来源相应设置为 4173。生产需要单独发布代理和传输服务，不会随 Git 提交自动上线。
+
+该入口已于 2026-10-28 随 v0.7.0 部署。正式 HTTP 本机端口 8789 打开的同步页会转向 `https://tools.20242233.xyz/Transfer`，其他开发／测试端口继续使用各自代理，不放宽后端来源限制。原有 todoist 与 Java 服务保持不变。
 
 ## todoist
 
