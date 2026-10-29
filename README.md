@@ -8,7 +8,7 @@ Vue 3／Vite 前端，提供首页、加解密、随机密码、todoist 与电�
 
 ## 电脑手机同步
 
-左侧导航在 todoist 后增加 `/Transfer`，嵌入同源 `/transfer/?embedded=1` 的实际传输界面。`Transfer.vue` 检查独立服务是否可用，失败可重试，离开页面取消检查并卸载界面。原有登录、文字／图片／文件上传、历史和下载由相邻 `snail-transfer/` 项目实现，Vue 不复制存储逻辑。开发时按该项目 README 以 `--prefix /transfer --origin http://127.0.0.1:8080` 启动；预览时来源相应设置为 4173。生产需要单独发布代理和传输服务，不会随 Git 提交自动上线。
+左侧导航在 todoist 后增加 `/Transfer`，嵌入同源 `/transfer/?embedded=1` 的实际传输界面。`Transfer.vue` 检查独立服务是否可用，失败可重试，离开页面取消检查并卸载界面。原有登录、文字／图片／文件上传、历史和下载由 txcBlog 仓库的 `transfer-service/` 实现，本机源码路径为 `/Users/macminimai/ai/project/personal-tools/back-end/blog/transfer-service`，Vue 不复制存储逻辑。开发时按该目录 README 以 `--prefix /transfer --origin http://127.0.0.1:8080` 启动；预览时来源相应设置为 4173。生产需要单独发布代理和传输服务，不会随 Git 提交自动上线。
 
 该入口已于 2026-10-28 随 v0.7.0 部署。正式 HTTP 本机端口 8789 打开的同步页会转向 `https://tools.20242233.xyz/Transfer`，其他开发／测试端口继续使用各自代理，不放宽后端来源限制。原有 todoist 与 Java 服务保持不变。
 
