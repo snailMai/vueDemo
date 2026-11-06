@@ -1,6 +1,6 @@
 # 工具前端
 
-当前源码版本为 `v3.3.2`，package 与锁文件同步，属于 V3 电脑手机同步阶段。本次仅对齐 Vue 元数据，不构建或部署外层页面；设置条、记录时间及缩略图等界面改进由独立传输组件提供，保留 1 MiB 分片、分页、批量删除与网页改密。
+当前源码版本为 `v3.4.0`，package 与锁文件同步，属于 V3 电脑手机同步阶段。本次仅对齐 Vue 元数据，不构建或部署外层页面；新增的局域网 HTTPS IP 入口复用现有 `/Transfer` 与同源接口，不跳转公网。访问地址、客户端证书安装及数据共用规则见宿主 [局域网直连说明](/Users/macminimai/ai/project/personal-tools/deploy/LAN.md) 。
 
 Vue 3／Vite 前端，提供首页、加解密、随机密码、todoist 与电脑手机同步页面。使用 Node.js 24 LTS（至少 24.12.0）和锁定依赖，通过 `npm ci` 安装、`npm test` 测试、`npm run serve` 开发、`npm run build` 构建至 `dist-refactor/`。`npm run preview` 可在本地预览生产构建。
 
