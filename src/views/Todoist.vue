@@ -287,7 +287,7 @@ onBeforeUnmount(() => {
 </script>
 
 <template>
-  <TodoistAccess v-slot="{ logout, loggingOut }" @authenticated="loadTasks" @locked="lockTodoist">
+  <TodoistAccess v-slot @authenticated="loadTasks" @locked="lockTodoist">
   <section class="todoist-page">
     <h1 class="visually-hidden">todoist</h1>
 
@@ -314,7 +314,6 @@ onBeforeUnmount(() => {
         </svg>
         刷新
       </button>
-      <button class="refresh-btn" type="button" :disabled="loggingOut" @click="logout">退出登录</button>
     </div>
 
     <!-- 提示条：提交回执、错误与状态 -->
