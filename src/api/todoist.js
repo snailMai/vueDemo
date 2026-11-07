@@ -1,4 +1,5 @@
 // 网页提交明确操作，由本地 Java 执行；不通过会话，不在前端生成任务目标等字段。
+import { accessCsrf, requireAccess } from './access.js'
 const messages = {
   INVALID_REQUEST: '输入无效，请检查内容后再提交。',
   NOT_CONNECTED: '尚未连接 AI Todoist 会话，未发送指令。',
@@ -97,13 +98,17 @@ export async function submitTodoist(input, requestId, signal, resume = false, on
       try {
         response = await fetch(url, {
           method: query ? 'GET' : 'POST',
-          headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+          headers: { 'Content-Type': 'application/json', Accept: 'application/json', ...(query ? {} : { 'X-CSRF-Token': accessCsrf() }) },
           credentials: 'same-origin', cache: 'no-store', redirect: 'error',
           ...(query ? {} : { body: JSON.stringify(typeof input === 'object'
             ? { ...validateTaskOperation(input), requestId } : { input, requestId }) }), signal: controller.signal
         })
         data = response.headers.get('content-type')?.includes('application/json') ? await response.json().catch(() => null) : null
       } finally { clearTimeout(requestTimer) }
+      if (response.status === 401 || (response.status === 403 && data?.code === 'CSRF_INVALID')) {
+        requireAccess()
+        throw new TodoistRequestError(query ? '登录已失效，请重新登录后查询原请求，不要重复提交。' : '请登录后重新操作，本次请求未提交。', query, !query, { code: 'AUTH_REQUIRED' })
+      }
       if (!response.ok || data?.status === 'failed') {
         if (data?.status === 'failed' && data.requestId !== requestId) throw new TodoistRequestError(messages.RESULT_UNKNOWN, true)
         const code = data?.code
@@ -158,6 +163,10 @@ export async function fetchTodoistTasks(signal) {
     signal?.removeEventListener('abort', abort)
   }
   if (!response.ok) {
+    if (response.status === 401) {
+      requireAccess()
+      throw new TodoistRequestError('请先登录后查看待办。', false, true, { code: 'AUTH_REQUIRED' })
+    }
     const code = data?.code
     throw new TodoistRequestError(Object.hasOwn(messages, code) ? messages[code] : messages.TASKS_UNAVAILABLE)
   }

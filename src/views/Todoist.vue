@@ -1,10 +1,11 @@
 <script setup>
 // 任务列表和增删改均由本地后端处理；前端不生成目标、完成标准等业务字段。
 // 提交即返回、可连续提交：本地立即乐观更新，失败回滚，结果未知不回滚也不重发。
-import { computed, nextTick, onBeforeUnmount, onMounted, ref } from 'vue'
+import { computed, nextTick, onBeforeUnmount, ref } from 'vue'
 import { useTodoistQueue } from '../composables/useTodoistQueue.js'
 import { fetchTodoistTasks, TodoistRequestError } from '../api/todoist.js'
 import RecurringPanel from '../components/RecurringPanel.vue'
+import TodoistAccess from '../components/TodoistAccess.vue'
 
 const NOTICE_TIMEOUT = 8000
 const todoistPriorities = Object.freeze(['P0', 'P1', 'P2', 'P3'])
@@ -86,6 +87,7 @@ async function readTasks() {
   loading.value = true
   try {
     const list = await fetchTodoistTasks(controller.signal)
+    if (controller.signal.aborted || unmounted) return false
     tasks.value = list
     const alive = new Set(list.map(task => task.key))
     selected.value = new Set([...selected.value].filter(id => alive.has(id)))
@@ -267,7 +269,15 @@ function formatTime(date) {
   return date.toLocaleTimeString('zh-CN', { hour12: false })
 }
 
-onMounted(loadTasks)
+function lockTodoist() {
+  loadController?.abort()
+  tasks.value = []
+  pendingAdds.value = []
+  selected.value = new Set()
+  deletion.value = null
+  editingId.value = null
+  showRecurring.value = false
+}
 onBeforeUnmount(() => {
   unmounted = true
   clearTimeout(noticeTimer)
@@ -277,6 +287,7 @@ onBeforeUnmount(() => {
 </script>
 
 <template>
+  <TodoistAccess v-slot="{ logout, loggingOut }" @authenticated="loadTasks" @locked="lockTodoist">
   <section class="todoist-page">
     <h1 class="visually-hidden">todoist</h1>
 
@@ -303,6 +314,7 @@ onBeforeUnmount(() => {
         </svg>
         刷新
       </button>
+      <button class="refresh-btn" type="button" :disabled="loggingOut" @click="logout">退出登录</button>
     </div>
 
     <!-- 提示条：提交回执、错误与状态 -->
@@ -411,6 +423,7 @@ onBeforeUnmount(() => {
       </div>
     </div>
   </section>
+  </TodoistAccess>
 </template>
 
 <style>
