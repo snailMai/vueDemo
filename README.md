@@ -1,6 +1,6 @@
 # 工具前端
 
-当前源码版本为 `v4.1.1`，package 与锁文件同步；统一 todoist 与电脑手机同步的登录卡结构（图标＋眉标＋标题＋全宽主按钮），登录逻辑与共享会话不变。保留 v4.0.0 的 todoist 共享登录及接口权限。局域网地址及证书规则见宿主 [局域网直连说明](/Users/macminimai/ai/project/personal-tools/deploy/LAN.md) 。
+当前源码及部署版本为 `v4.2.1`。Todoist 编辑时仅显示「修改级别」，隐藏新增区并保留草稿；只发送明确改变的字段。保留原共享登录，传输服务及 Java 接口不变。
 
 Vue 3／Vite 前端，提供首页、加解密、随机密码、todoist 与电脑手机同步页面。使用 Node.js 24 LTS（至少 24.12.0）和锁定依赖，通过 `npm ci` 安装、`npm test` 测试、`npm run serve` 开发、`npm run build` 构建至 `dist-refactor/`。`npm run preview` 可在本地预览生产构建。
 

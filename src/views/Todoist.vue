@@ -360,8 +360,8 @@ onBeforeUnmount(() => {
         <button class="btn btn-danger" type="button" @click="confirmDeletion">确认删除</button>
         <button class="btn" type="button" @click="deletion = null">取消</button>
       </div>
-      <div class="add-row">
-        <fieldset class="add-priority">
+      <div v-if="!showEdit" class="add-row">
+        <fieldset class="priority-picker">
           <legend>新增级别</legend>
           <label v-for="priority in todoistPriorities" :key="priority">
             <input v-model="addPriority" type="radio" name="add-priority" :value="priority">{{ priority }}
@@ -373,17 +373,20 @@ onBeforeUnmount(() => {
           @click="addTask">添加任务</button>
       </div>
       <div v-if="showEdit" class="edit-row">
+        <fieldset class="priority-picker">
+          <legend>修改级别</legend>
+          <label v-for="priority in todoistPriorities" :key="priority">
+            <input v-model="editPriority" type="radio" name="edit-priority" :value="priority">{{ priority }}
+          </label>
+        </fieldset>
+        <input v-model="editNote" type="text" aria-label="修改备注" placeholder="备注，不填为无">
+      </div>
+      <div v-if="showEdit" class="edit-row">
         <input ref="editInputEl" v-model="editInput" type="text" placeholder="输入修改后的任务内容…" autocomplete="off"
           @keydown.enter="!$event.isComposing && confirmEdit()" @keydown.esc="cancelEdit">
         <button class="btn btn-primary" type="button" :disabled="!editInput.trim()"
           @click="confirmEdit">确认修改</button>
         <button class="btn" type="button" @click="cancelEdit">取消</button>
-      </div>
-      <div v-if="showEdit" class="edit-row">
-        <label v-for="priority in todoistPriorities" :key="priority">
-          <input v-model="editPriority" type="radio" name="edit-priority" :value="priority">{{ priority }}
-        </label>
-        <input v-model="editNote" type="text" aria-label="修改备注" placeholder="备注，不填为无">
       </div>
       <div class="batch-row">
         <span class="selection-info">{{ selectionInfo }}</span>
@@ -516,11 +519,11 @@ onBeforeUnmount(() => {
 /* ── 底部操作区 ── */
 .todoist-page .action-bar { display: flex; flex-direction: column; gap: 8px; flex: none; }
 .todoist-page .add-row { display: flex; align-items: center; gap: 8px; }
-.todoist-page .add-priority { display: flex; gap: 2px; flex: none; min-width: 0; margin: 0; padding: 0 4px 4px; border: 1px solid var(--border); border-radius: 7px; background: #fff; }
-.todoist-page .add-priority legend { padding: 0 4px; font-size: 11px; color: var(--muted); }
-.todoist-page .add-priority label { display: inline-flex; align-items: center; gap: 4px; padding: 5px 6px; border-radius: 5px; font-size: 12px; cursor: pointer; }
-.todoist-page .add-priority label:has(input:checked) { background: var(--accent-soft); color: var(--accent); }
-.todoist-page .add-priority input { margin: 0; accent-color: var(--accent); }
+.todoist-page .priority-picker { display: flex; gap: 2px; flex: none; min-width: 0; margin: 0; padding: 0 4px 4px; border: 1px solid var(--border); border-radius: 7px; background: #fff; }
+.todoist-page .priority-picker legend { padding: 0 4px; font-size: 11px; color: var(--muted); }
+.todoist-page .priority-picker label { display: inline-flex; align-items: center; gap: 4px; padding: 5px 6px; border-radius: 5px; font-size: 12px; cursor: pointer; }
+.todoist-page .priority-picker label:has(input:checked) { background: var(--accent-soft); color: var(--accent); }
+.todoist-page .priority-picker input { margin: 0; accent-color: var(--accent); }
 .todoist-page .add-row > input[type="text"] {
   flex: 1; min-width: 0; padding: 11px 13px; border: 1px solid #cdd6cb; border-radius: 7px;
   background: #fff; color: #202a22; font-size: 16px; line-height: 1.5;
@@ -541,7 +544,6 @@ onBeforeUnmount(() => {
 
 /* ── 内联修改编辑 ── */
 .todoist-page .edit-row { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; padding: 8px; border: 1px dashed #cdd6cb; border-radius: 7px; background: #fafbf8; }
-.todoist-page .edit-row label { display: inline-flex; align-items: center; gap: 3px; }
 .todoist-page .edit-row input[type="text"] { flex: 1; min-width: 120px; padding: 9px 11px; border: 1px solid #cdd6cb; border-radius: 6px; font-size: 14px; background: #fff; }
 .todoist-page .edit-row input[type="text"]:focus { border-color: #6d9b7b; outline: none; }
 
@@ -576,8 +578,8 @@ onBeforeUnmount(() => {
   .todoist-page .badge.p0, .todoist-page .badge.p1, .todoist-page .badge.p2, .todoist-page .badge.p3 { display: none; } /* 窄屏隐藏优先级徽标，保内容 + 期限 */
   .todoist-page .selection-info { width: 100%; }
   .todoist-page .add-row { flex-wrap: wrap; }
-  .todoist-page .add-priority { flex-basis: 100%; }
-  .todoist-page .add-priority label { flex: 1; justify-content: center; min-height: 44px; }
+  .todoist-page .priority-picker { flex-basis: 100%; }
+  .todoist-page .priority-picker label { flex: 1; justify-content: center; min-height: 44px; }
   .todoist-page .add-row .btn { flex: none; }
   .todoist-page .task { gap: 8px; padding: 12px 10px; }
   .todoist-page .task-due { font-size: 11px; }
