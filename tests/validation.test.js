@@ -26,13 +26,22 @@ test('最大明文和密钥的 JSON 转义仍低于请求体上限', () => {
 })
 
 test('密码参数默认值、空值和边界按接口契约解析', () => {
-  assert.deepEqual(parsePasswordParameters({}), { num: 0, quantity: 1 })
-  assert.deepEqual(parsePasswordParameters({ num: '', quantity: ' ' }), { num: 0, quantity: 1 })
+  const allSelected = { letters: true, symbols: true, digits: true }
+  assert.deepEqual(parsePasswordParameters({}), { num: 0, quantity: 1, ...allSelected })
+  assert.deepEqual(parsePasswordParameters({ num: '', quantity: ' ' }), { num: 0, quantity: 1, ...allSelected })
   for (const num of [0, 1, 128]) {
     for (const quantity of [1, 100]) {
-      assert.deepEqual(parsePasswordParameters({ num: String(num), quantity: String(quantity) }), { num, quantity })
+      assert.deepEqual(parsePasswordParameters({ num: String(num), quantity: String(quantity) }), { num, quantity, ...allSelected })
     }
   }
+})
+
+test('字符类别只有显式 false 才算取消勾选，全不勾选报错', () => {
+  assert.deepEqual(parsePasswordParameters({ letters: false }), { num: 0, quantity: 1, letters: false, symbols: true, digits: true })
+  assert.deepEqual(parsePasswordParameters({ letters: true, symbols: false, digits: false }),
+    { num: 0, quantity: 1, letters: true, symbols: false, digits: false })
+  assert.throws(() => parsePasswordParameters({ letters: false, symbols: false, digits: false }),
+    /请至少勾选一种字符类型（英文、特殊字符或数字）。/)
 })
 
 test('拒绝负数、小数、指数、字母、超限和不安全整数', () => {

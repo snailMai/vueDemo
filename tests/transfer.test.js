@@ -15,12 +15,31 @@ function page(fetch, location = { hostname: 'test.local', port: '' }) {
   return { ...context.page, start: () => start(), cleanup: () => cleanup() }
 }
 
-test('电脑手机同步位于 todoist 下方，已有页面和未知地址回退保持不变', () => {
+test('电脑手机同步位于 todoist 之后，已有页面和未知地址回退保持不变', () => {
   const index = toolPages.findIndex(item => item.path === '/Todoist')
-  assert.equal(toolPages[index + 1].path, '/Transfer')
-  assert.equal(toolPages[index + 1].label, '电脑手机同步')
+  const transferIndex = toolPages.findIndex(item => item.path === '/Transfer')
+  assert.ok(transferIndex > index)
+  assert.equal(toolPages[transferIndex].label, '电脑手机同步')
+  assert.equal(transferIndex, toolPages.length - 1)
   assert.equal(routes.at(-1).redirect, '/About')
-  assert.deepEqual(toolPages.slice(0, index + 1).map(item => item.path), ['/About', '/ToolsCryption', '/GetRandomPWD', '/Todoist'])
+  assert.deepEqual(toolPages.slice(0, index + 1).map(item => item.path), ['/About', '/Todoist'])
+})
+
+test('首页提供电脑手机同步入口并复用现有卡片样式', () => {
+  const source = readFileSync(new URL('../src/views/About.vue', import.meta.url), 'utf8')
+  assert.match(source, /<RouterLink to="\/Transfer" class="tool-card">/)
+  assert.match(source, /<h2>电脑手机同步<\/h2>/)
+  assert.match(source, /<h2>Todoist<\/h2>/)
+  assert.doesNotMatch(source, /<h2>todoist<\/h2>/)
+  assert.equal((source.match(/class="tool-card"/g) || []).length, 4)
+})
+
+test('首页标题、卡片说明与底部注释使用紧凑单行布局', () => {
+  const source = readFileSync(new URL('../src/views/About.vue', import.meta.url), 'utf8')
+  assert.match(source, /<h1>小工具，<span class="accent">解决手边的小事。<\/span><\/h1>/)
+  assert.doesNotMatch(source, /<h1>小工具，<br>/)
+  assert.match(source, /\.home-page \.tool-card p \{[^}]*white-space: nowrap[^}]*text-overflow: ellipsis/)
+  assert.match(source, /\.home-page \.privacy-note \{[^}]*white-space: nowrap[^}]*text-overflow: ellipsis/)
 })
 
 test('实际服务健康响应后才显示传输界面，不读取 todoist 接口', async t => {

@@ -20,7 +20,7 @@ export function validateCipherInput(input, mode) {
   return { key: input.key, pwd: input.pwd }
 }
 
-/** 空参数采用接口默认值，非空参数必须是范围内的十进制非负整数。 */
+/** 空参数采用接口默认值，非空参数必须是范围内的十进制非负整数；字符类别缺省视为全选。 */
 export function parsePasswordParameters(input) {
   function integer(value, fallback, min, max, label) {
     const text = String(value ?? '').trim()
@@ -33,8 +33,19 @@ export function parsePasswordParameters(input) {
     return number
   }
 
+  // 只有显式 false 才算取消勾选，旧调用方不传时保持三类全选的原输出范围。
+  const letters = input.letters !== false
+  const symbols = input.symbols !== false
+  const digits = input.digits !== false
+  if (!letters && !symbols && !digits) {
+    throw new Error('请至少勾选一种字符类型（英文、特殊字符或数字）。')
+  }
+
   return {
     num: integer(input.num, 0, 0, 128, '密码位数'),
-    quantity: integer(input.quantity, 1, 1, 100, '密码个数')
+    quantity: integer(input.quantity, 1, 1, 100, '密码个数'),
+    letters,
+    symbols,
+    digits
   }
 }

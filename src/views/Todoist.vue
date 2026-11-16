@@ -289,7 +289,7 @@ onBeforeUnmount(() => {
 <template>
   <TodoistAccess v-slot @authenticated="loadTasks" @locked="lockTodoist">
   <section class="todoist-page">
-    <h1 class="visually-hidden">todoist</h1>
+    <h1 class="visually-hidden">Todoist</h1>
 
     <!-- 查询区：P0–P3 分段控件（带计数角标）与刷新 -->
     <div class="query-bar" role="tablist" aria-label="查询范围">

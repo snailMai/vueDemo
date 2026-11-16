@@ -20,7 +20,7 @@ export function decryptText(input, signal) {
   })
 }
 
-// GET 查询只携带长度与数量；生成的密码作为原始文本响应处理。
+// GET 查询只携带长度、数量与字符类别勾选；生成的密码作为原始文本响应处理。
 export function generatePasswords(parameters, signal) {
   const query = new URLSearchParams(parameters)
   return requestText(`tools/get/randompwd?${query}`, { signal })

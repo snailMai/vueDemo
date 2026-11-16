@@ -1,9 +1,9 @@
 // 导航和路由共用一个页面清单，组件按需加载，避免两处菜单定义漂移。
 export const toolPages = [
   { path: '/About', label: '首页', number: '01', component: () => import('../views/About.vue') },
-  { path: '/ToolsCryption', label: '文本加解密', number: '02', component: () => import('../views/ToolsCryption.vue') },
-  { path: '/GetRandomPWD', label: '随机密码', number: '03', component: () => import('../views/GetRandomPWD.vue') },
-  { path: '/Todoist', label: 'todoist', number: '04', component: () => import('../views/Todoist.vue') },
+  { path: '/Todoist', label: 'Todoist', number: '02', component: () => import('../views/Todoist.vue') },
+  { path: '/ToolsCryption', label: '文本加解密', number: '03', component: () => import('../views/ToolsCryption.vue') },
+  { path: '/GetRandomPWD', label: '随机密码', number: '04', component: () => import('../views/GetRandomPWD.vue') },
   { path: '/Transfer', label: '电脑手机同步', number: '05', component: () => import('../views/Transfer.vue') }
 ]
 

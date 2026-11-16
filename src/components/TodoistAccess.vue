@@ -65,12 +65,12 @@ onBeforeUnmount(() => { disposed = true; revision++; unsubscribe(); document.rem
 
 <template>
   <div v-if="!allowed" class="access-screen">
-    <section class="todoist-access" aria-label="todoist 登录">
+    <section class="todoist-access" aria-label="Todoist 登录">
       <div class="access-head">
         <img :src="ACCESS_ICON" width="40" height="40" alt="蜗牛传送">
         <div class="access-titles">
           <span class="access-eyebrow">SHARED ACCESS</span>
-          <h1>todoist 任务</h1>
+          <h1>Todoist 任务</h1>
         </div>
       </div>
       <p v-if="checking" class="access-desc" role="status">正在检查登录状态……</p>
@@ -78,7 +78,7 @@ onBeforeUnmount(() => { disposed = true; revision++; unsubscribe(); document.rem
         <p class="access-desc">输入密码，查看和管理你的待办任务。</p>
         <label for="todoist-password">访问密码</label>
         <input id="todoist-password" v-model="password" type="password" autocomplete="current-password" required maxlength="256" placeholder="输入你的访问密码" :disabled="busy" />
-        <button class="access-submit" type="submit" :disabled="busy">{{ busy ? '正在登录…' : '进入 todoist ↗' }}</button>
+        <button class="access-submit" type="submit" :disabled="busy">{{ busy ? '正在登录…' : '进入 Todoist ↗' }}</button>
       </form>
       <p v-if="error" class="access-error" role="alert">{{ error }}</p>
       <p class="access-foot">待办 · 优先级 · 期限，留在自己的清单里</p>
